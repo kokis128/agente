@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WhatsApp - Kiosco Don Valentini</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #e5ddd5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 16px;
+  }
+  .telefono {
+    width: 400px;
+    max-width: 100%;
+    height: 780px;
+    max-height: 92vh;
+    background: #e5ddd5;
+    border-radius: 28px;
+    box-shadow: 0 25px 60px rgba(0,0,0,0.35);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border: 8px solid #111;
+  }
+  .header {
+    background: #075E54;
+    color: white;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: #25D366;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem;
+  }
+  .header .nombre { font-weight: 600; }
+  .header .estado { font-size: 0.75rem; opacity: 0.85; }
+  .mensajes {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background-image: radial-gradient(rgba(255,255,255,0.4) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+  .burbuja {
+    max-width: 78%;
+    padding: 9px 12px;
+    border-radius: 10px;
+    font-size: 0.92rem;
+    line-height: 1.35;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+    white-space: pre-wrap;
+  }
+  .cliente { align-self: flex-end; background: #DCF8C6; border-top-right-radius: 2px; }
+  .agente { align-self: flex-start; background: #ffffff; border-top-left-radius: 2px; }
+  .agente.escalado { border-left: 3px solid #e74c3c; }
+  .aviso {
+    align-self: center;
+    background: #fff3cd;
+    color: #7a5b00;
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 8px;
+  }
+  .hora { font-size: 0.65rem; color: #667781; margin-top: 4px; text-align: right; }
+  .barra {
+    display: flex;
+    padding: 10px;
+    gap: 8px;
+    background: #f0f0f0;
+  }
+  .barra input {
+    flex: 1;
+    border: none;
+    border-radius: 20px;
+    padding: 12px 16px;
+    font-size: 0.9rem;
+    outline: none;
+  }
+  .barra button {
+    border: none;
+    background: #075E54;
+    color: white;
+    width: 44px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.1rem;
+  }
+  .barra button:disabled { opacity: 0.5; cursor: default; }
+  .volver {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    background: white;
+    border-radius: 10px;
+    padding: 8px 14px;
+    text-decoration: none;
+    color: #075E54;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+</style>
+</head>
+<body>
+  <a class="volver" href="/">← Volver</a>
+  <div class="telefono">
+    <div class="header">
+      <div class="avatar">🏪</div>
+      <div>
+        <div class="nombre">Kiosco Don Valentini</div>
+        <div class="estado" id="estado">en línea</div>
+      </div>
+    </div>
+    <div class="mensajes" id="mensajes"></div>
+    <div class="barra">
+      <input id="input" type="text" placeholder="Escribí un mensaje..." autocomplete="off" />
+      <button id="enviar">➤</button>
+    </div>
+  </div>
+  <script src="whatsapp.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+[
+  { "nombre": "Coca-Cola 500ml", "categoria": "Bebidas", "precio": 1800, "stock": 24 },
+  { "nombre": "Agua mineral 500ml", "categoria": "Bebidas", "precio": 1200, "stock": 30 },
+  { "nombre": "Cerveza Quilmes 1L", "categoria": "Bebidas", "precio": 2600, "stock": 12 },
+  { "nombre": "Alfajor Guaymallén", "categoria": "Golosinas", "precio": 900, "stock": 50 },
+  { "nombre": "Chocolate Milka", "categoria": "Golosinas", "precio": 2200, "stock": 15 },
+  { "nombre": "Paquete de galletitas Oreo", "categoria": "Golosinas", "precio": 2100, "stock": 20 },
+  { "nombre": "Papas fritas Lays 150g", "categoria": "Snacks", "precio": 2400, "stock": 18 },
+  { "nombre": "Pan lactal", "categoria": "Almacén", "precio": 2800, "stock": 10 },
+  { "nombre": "Fideos 500g", "categoria": "Almacén", "precio": 1500, "stock": 25 },
+  { "nombre": "Leche entera 1L", "categoria": "Almacén", "precio": 1600, "stock": 20 },
+  { "nombre": "Huevos x12", "categoria": "Almacén", "precio": 3200, "stock": 14 },
+  { "nombre": "Yerba mate 500g", "categoria": "Almacén", "precio": 3800, "stock": 16 },
+  { "nombre": "Cigarrillos Marlboro", "categoria": "Otros", "precio": 4500, "stock": 40 },
+  { "nombre": "Hielo bolsa 2kg", "categoria": "Otros", "precio": 1300, "stock": 8 }
+]

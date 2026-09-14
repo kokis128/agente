@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Agente IA - Kiosco Don Valentini</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 640px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    text-align: center;
+  }
+  h1 { margin-top: 0; color: #111; font-size: 1.6rem; }
+  p.subtitle { color: #555; margin-bottom: 32px; }
+  .links {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 480px) {
+    .links { grid-template-columns: 1fr; }
+  }
+  a.boton {
+    display: block;
+    padding: 20px;
+    border-radius: 14px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: transform 0.15s ease;
+  }
+  a.boton:hover { transform: translateY(-3px); }
+  .boton-whatsapp { background: #25D366; color: white; }
+  .boton-panel { background: #111827; color: white; }
+  .emoji { font-size: 2rem; display: block; margin-bottom: 8px; }
+  footer { margin-top: 28px; font-size: 0.8rem; color: #999; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🤖 Agente de IA para un negocio</h1>
+    <p class="subtitle">Proyecto de expo — el agente atiende WhatsApp, responde consultas, toma pedidos y avisa a un humano cuando no puede resolver algo solo.</p>
+    <div class="links">
+      <a class="boton boton-whatsapp" href="/whatsapp.html">
+        <span class="emoji">💬</span>
+        Probar el WhatsApp (cliente)
+      </a>
+      <a class="boton boton-panel" href="/dashboard.html">
+        <span class="emoji">📊</span>
+        Panel del dueño (supervisión)
+      </a>
+    </div>
+    <footer>Abrí las dos pantallas en ventanas separadas para ver al agente trabajar en vivo.</footer>
+  </div>
+</body>
+</html>

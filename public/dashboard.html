@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Panel del dueño - Kiosco Don Valentini</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #f4f5f7;
+    color: #1a1a1a;
+  }
+  header {
+    background: #111827;
+    color: white;
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 { font-size: 1.15rem; margin: 0; }
+  header a { color: #93c5fd; text-decoration: none; font-size: 0.9rem; }
+  main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+  section { margin-bottom: 32px; }
+  h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.04em; color: #374151; }
+  .tabla-wrap {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    overflow-x: auto;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid #eee; vertical-align: top; }
+  th { background: #fafafa; color: #555; font-weight: 600; }
+  tr.escalado { background: #fff5f5; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+  .badge-ok { background: #dcfce7; color: #166534; }
+  .badge-alerta { background: #fee2e2; color: #991b1b; }
+  .badge-pendiente { background: #fef9c3; color: #854d0e; }
+  .badge-confirmado { background: #dcfce7; color: #166534; }
+  .badge-rechazado { background: #e5e7eb; color: #374151; }
+  .vacio { padding: 20px; color: #888; font-style: italic; }
+  button.accion {
+    border: none;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    margin-right: 6px;
+  }
+  button.confirmar { background: #16a34a; color: white; }
+  button.rechazar { background: #dc2626; color: white; }
+  .canal { font-size: 0.75rem; color: #6b7280; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>📊 Panel del dueño — Kiosco Don Valentini</h1>
+    <a href="/">← Volver al inicio</a>
+  </header>
+  <main>
+    <section>
+      <h2>Pedidos pendientes de confirmar</h2>
+      <div class="tabla-wrap">
+        <table id="tabla-pedidos">
+          <thead>
+            <tr><th>Fecha</th><th>Cliente</th><th>Items</th><th>Total</th><th>Estado</th><th>Acción</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="vacio" id="vacio-pedidos" hidden>Todavía no hay pedidos.</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Conversaciones del agente (en vivo)</h2>
+      <div class="tabla-wrap">
+        <table id="tabla-logs">
+          <thead>
+            <tr><th>Hora</th><th>Canal</th><th>Cliente</th><th>Mensaje</th><th>Respuesta del agente</th><th>Estado</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="vacio" id="vacio-logs" hidden>Todavía no hay conversaciones.</div>
+      </div>
+    </section>
+  </main>
+  <script src="dashboard.js"></script>
+</body>
+</html>

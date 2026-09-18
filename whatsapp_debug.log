@@ -1,0 +1,8 @@
+2026-09-17T00:29:11.007947+00:00 | EXCEPCION al llamar a Graph API | to=542604597817 | ConnectTimeout: 
+2026-09-17T00:29:16.172903+00:00 | EXCEPCION al llamar a Graph API | to=542604597817 | ConnectTimeout: 
+2026-09-17T09:44:27.210438+00:00 | to=542604597817 | status=200 | body={"messaging_product":"whatsapp","contacts":[{"input":"542604597817","wa_id":"5492604597817"}],"messages":[{"id":"wamid.HBgNNTQ5MjYwNDU5NzgxNxUCABEYEkI0RjY0NEExMDQ0MEREQURCNAA="}]}
+2026-09-17T09:45:04.155796+00:00 | to=542604597817 | status=200 | body={"messaging_product":"whatsapp","contacts":[{"input":"542604597817","wa_id":"5492604597817"}],"messages":[{"id":"wamid.HBgNNTQ5MjYwNDU5NzgxNxUCABEYEkJDRjhCOTBDMjY5NjYzNjU0QgA="}]}
+2026-09-17T09:53:24.815594+00:00 | to=542604597817 | status=200 | body={"messaging_product":"whatsapp","contacts":[{"input":"542604597817","wa_id":"5492604597817"}],"messages":[{"id":"wamid.HBgNNTQ5MjYwNDU5NzgxNxUCABEYEjYzMUIwODAwODJBQzU3NzY1RgA="}]}
+2026-09-17T09:53:43.118045+00:00 | to=542604597817 | status=200 | body={"messaging_product":"whatsapp","contacts":[{"input":"542604597817","wa_id":"5492604597817"}],"messages":[{"id":"wamid.HBgNNTQ5MjYwNDU5NzgxNxUCABEYEjg5MjM3ODU1RjI2NUMwMzQ4NgA="}]}
+2026-09-17T09:54:19.243449+00:00 | to=542604597817 | status=200 | body={"messaging_product":"whatsapp","contacts":[{"input":"542604597817","wa_id":"5492604597817"}],"messages":[{"id":"wamid.HBgNNTQ5MjYwNDU5NzgxNxUCABEYEjVBQTk4RkQzMERCN0VERURERQA="}]}
+2026-09-17T09:58:54.678464+00:00 | to=542604597817 | status=200 | body={"messaging_product":"whatsapp","contacts":[{"input":"542604597817","wa_id":"5492604597817"}],"messages":[{"id":"wamid.HBgNNTQ5MjYwNDU5NzgxNxUCABEYEjk4MkY3NjVCQ0VCMUQ2RTBCNwA="}]}

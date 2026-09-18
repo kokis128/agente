@@ -33,6 +33,7 @@
     grid-template-columns: 1fr 1fr;
     gap: 16px;
   }
+  .links .boton-qr { grid-column: 1 / -1; }
   @media (max-width: 480px) {
     .links { grid-template-columns: 1fr; }
   }
@@ -47,6 +48,7 @@
   a.boton:hover { transform: translateY(-3px); }
   .boton-whatsapp { background: #25D366; color: white; }
   .boton-panel { background: #111827; color: white; }
+  .boton-qr { background: #7c3aed; color: white; }
   .emoji { font-size: 2rem; display: block; margin-bottom: 8px; }
   footer { margin-top: 28px; font-size: 0.8rem; color: #999; }
 </style>
@@ -63,6 +65,10 @@
       <a class="boton boton-panel" href="/dashboard.html">
         <span class="emoji">📊</span>
         Panel del dueño (supervisión)
+      </a>
+      <a class="boton boton-qr" href="/qr.html">
+        <span class="emoji">📱</span>
+        Cartel con QR (para la expo)
       </a>
     </div>
     <footer>Abrí las dos pantallas en ventanas separadas para ver al agente trabajar en vivo.</footer>

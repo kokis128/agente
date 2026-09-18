@@ -48,8 +48,26 @@ async def enviar_mensaje_whatsapp(destinatario: str, texto: str) -> None:
         "text": {"body": texto},
     }
 
-    async with httpx.AsyncClient(timeout=20) as client:
-        res = await client.post(url, headers=headers, json=body)
+    from datetime import datetime, timezone
+
+    def _log(linea: str) -> None:
+        try:
+            with open("whatsapp_debug.log", "a", encoding="utf-8") as logf:
+                logf.write(f"{datetime.now(timezone.utc).isoformat()} | {linea}\n")
+        except Exception as e:
+            print(f"[meta_whatsapp] No se pudo escribir el log de debug: {e}")
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            res = await client.post(url, headers=headers, json=body)
+    except Exception as e:
+        _log(f"EXCEPCION al llamar a Graph API | to={destinatario} | {type(e).__name__}: {e}")
+        print(f"[meta_whatsapp] Excepcion enviando mensaje: {type(e).__name__}: {e}")
+        return
+
+    _log(f"to={destinatario} | status={res.status_code} | body={res.text}")
 
     if res.status_code >= 300:
         print(f"[meta_whatsapp] Error enviando mensaje ({res.status_code}): {res.text}")
+    else:
+        print(f"[meta_whatsapp] Mensaje enviado OK a {destinatario} (status {res.status_code})")

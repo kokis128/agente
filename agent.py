@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
+from openpyxl import Workbook, load_workbook
 from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -24,6 +25,7 @@ NEGOCIO_PATH = DATA_DIR / "negocio.json"
 PRODUCTOS_PATH = DATA_DIR / "productos.json"
 LOGS_PATH = DATA_DIR / "logs.json"
 PEDIDOS_PATH = DATA_DIR / "pedidos.json"
+PEDIDOS_XLSX_PATH = DATA_DIR / "pedidos.xlsx"
 
 DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
 
@@ -169,20 +171,52 @@ def registrar_log(entrada: dict):
     guardar_json(LOGS_PATH, logs)
 
 
+def _abrir_o_crear_excel_pedidos():
+    """Abre data/pedidos.xlsx si ya existe, o lo crea con encabezados."""
+    if PEDIDOS_XLSX_PATH.exists():
+        wb = load_workbook(PEDIDOS_XLSX_PATH)
+        ws = wb.active
+    else:
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Pedidos"
+        ws.append(["ID", "Fecha", "Cliente", "Productos", "Total", "Estado"])
+        anchos = {"A": 22, "B": 18, "C": 16, "D": 55, "E": 10, "F": 12}
+        for columna, ancho in anchos.items():
+            ws.column_dimensions[columna].width = ancho
+    return wb, ws
+
+
+def registrar_pedido_excel(pedido_id: str, cliente: str, pedido: Pedido, fecha_iso: str, estado: str = "pendiente"):
+    """Agrega una fila nueva a data/pedidos.xlsx. Si falla, no rompe el
+    flujo del agente (el JSON sigue siendo la fuente de verdad)."""
+    try:
+        wb, ws = _abrir_o_crear_excel_pedidos()
+        productos_texto = "; ".join(f"{item.cantidad}x {item.producto}" for item in pedido.items)
+        fecha_legible = datetime.fromisoformat(fecha_iso).strftime("%d/%m/%Y %H:%M")
+        ws.append([pedido_id, fecha_legible, cliente, productos_texto, pedido.total, estado])
+        wb.save(PEDIDOS_XLSX_PATH)
+    except Exception as e:
+        print(f"[agent] No se pudo actualizar pedidos.xlsx: {e}")
+
+
 def registrar_pedido(cliente: str, pedido: Pedido):
     pedidos = leer_json(PEDIDOS_PATH, [])
     sufijo = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    pedido_id = f"{int(time.time())}-{sufijo}"
+    fecha_iso = datetime.now(timezone.utc).isoformat()
     pedidos.append(
         {
-            "id": f"{int(time.time())}-{sufijo}",
+            "id": pedido_id,
             "cliente": cliente,
             "items": [item.model_dump() for item in pedido.items],
             "total": pedido.total,
             "estado": "pendiente",  # pendiente | confirmado | rechazado
-            "fecha": datetime.now(timezone.utc).isoformat(),
+            "fecha": fecha_iso,
         }
     )
     guardar_json(PEDIDOS_PATH, pedidos)
+    registrar_pedido_excel(pedido_id, cliente, pedido, fecha_iso)
 
 
 async def responder_mensaje(cliente: str, mensaje: str, canal: str) -> ResultadoAgente:

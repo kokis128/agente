@@ -9,21 +9,41 @@ Servidor FastAPI del agente. Expone:
 """
 
 import os
+import socket
 from pathlib import Path
 from xml.sax.saxutils import escape
 
 from dotenv import load_dotenv
 
+# Forzar resolución DNS solo por IPv4. Algunas conexiones de Windows/ISP
+# tienen IPv6 mal configurado: los pedidos a dominios con registro AAAA
+# (como graph.facebook.com) se cuelgan intentando conectar por IPv6 hasta
+# hacer timeout, aunque el navegador (que sí hace fallback automático a
+# IPv4) funcione perfecto. Este parche evita que httpx/asyncio intenten
+# siquiera esa ruta.
+_getaddrinfo_original = socket.getaddrinfo
+
+
+def _getaddrinfo_solo_ipv4(host, port, family=0, type=0, proto=0, flags=0):
+    resultados = _getaddrinfo_original(host, port, socket.AF_INET, type, proto, flags)
+    return resultados
+
+
+socket.getaddrinfo = _getaddrinfo_solo_ipv4
+
 # Cargar .env ANTES de importar agent, para que las variables de entorno
 # ya estén disponibles si algún módulo las necesita al importarse.
 load_dotenv()
 
+import io
+
+import qrcode
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import FileResponse, PlainTextResponse, Response
+from fastapi.responses import FileResponse, PlainTextResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from agent import leer_json, guardar_json, responder_mensaje, LOGS_PATH, PEDIDOS_PATH
+from agent import leer_json, guardar_json, responder_mensaje, LOGS_PATH, PEDIDOS_PATH, PEDIDOS_XLSX_PATH
 from meta_whatsapp import enviar_mensaje_whatsapp
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -115,6 +135,33 @@ def obtener_logs():
 @app.get("/api/pedidos")
 def obtener_pedidos():
     return leer_json(PEDIDOS_PATH, [])
+
+
+@app.get("/api/pedidos/excel")
+def descargar_pedidos_excel():
+    """Descarga el Excel con todos los pedidos (data/pedidos.xlsx)."""
+    if not PEDIDOS_XLSX_PATH.exists():
+        raise HTTPException(status_code=404, detail="Todavía no hay pedidos registrados en Excel")
+    return FileResponse(
+        PEDIDOS_XLSX_PATH,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="pedidos.xlsx",
+    )
+
+
+@app.get("/api/qr-whatsapp")
+def qr_whatsapp(request: Request):
+    """Genera un QR que apunta al WhatsApp simulado, usando la misma
+    URL/host con la que se accedió a esta página. Así, si esta pantalla
+    se abre con la IP de la red local o con la URL de ngrok, el QR
+    apunta automáticamente a esa misma dirección (funciona para ambas
+    sin tener que hardcodear nada)."""
+    url_whatsapp = f"{request.base_url}whatsapp.html"
+    img = qrcode.make(url_whatsapp, box_size=10, border=2)
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="image/png")
 
 
 @app.post("/api/pedidos/{pedido_id}/estado")

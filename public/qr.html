@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Probá el asistente - Kiosco 24</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 48px;
+    max-width: 520px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    text-align: center;
+  }
+  .emoji { font-size: 3rem; margin-bottom: 8px; }
+  h1 { margin: 0 0 8px; color: #111; font-size: 1.6rem; }
+  p.subtitle { color: #555; margin: 0 0 28px; font-size: 1rem; }
+  .qr-wrap {
+    background: white;
+    border: 10px solid #111827;
+    border-radius: 20px;
+    padding: 16px;
+    display: inline-block;
+  }
+  img { display: block; width: 260px; height: 260px; }
+  .estado {
+    margin-top: 20px;
+    font-size: 0.85rem;
+    color: #888;
+  }
+  footer {
+    margin-top: 24px;
+    font-size: 0.85rem;
+    color: #6b7280;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="emoji">📱</div>
+    <h1>Escaneá y probá el asistente</h1>
+    <p class="subtitle">Es el agente de IA que atiende el WhatsApp de un kiosco. Escribile lo que quieras — respondé una consulta o hacé un pedido.</p>
+    <div class="qr-wrap">
+      <img id="qr" src="/api/qr-whatsapp" alt="Código QR para probar el asistente" />
+    </div>
+    <p class="estado" id="estado"></p>
+    <footer>Proyecto de expo — Agente de IA para un negocio</footer>
+  </div>
+  <script>
+    const img = document.getElementById("qr");
+    const estado = document.getElementById("estado");
+    img.addEventListener("error", () => {
+      estado.textContent = "No se pudo generar el QR, reintentando...";
+      setTimeout(() => { img.src = "/api/qr-whatsapp?t=" + Date.now(); }, 3000);
+    });
+    img.addEventListener("load", () => { estado.textContent = ""; });
+  </script>
+</body>
+</html>

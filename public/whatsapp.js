@@ -1,5 +1,6 @@
 // Simula la app de WhatsApp: manda el mensaje del "cliente" al agente
-// (POST /api/chat) y muestra la respuesta como si fuera una conversación real.
+// (POST /api/chat) y muestra la respuesta como si fuera una conversación real,
+// con indicador de "escribiendo..." animado mientras el agente responde.
 
 const contenedor = document.getElementById("mensajes");
 const input = document.getElementById("input");
@@ -42,6 +43,20 @@ function agregarAviso(texto) {
   contenedor.scrollTop = contenedor.scrollHeight;
 }
 
+function mostrarEscribiendo() {
+  const burbuja = document.createElement("div");
+  burbuja.className = "escribiendo";
+  burbuja.id = "burbuja-escribiendo";
+  burbuja.innerHTML = '<span class="punto"></span><span class="punto"></span><span class="punto"></span>';
+  contenedor.appendChild(burbuja);
+  contenedor.scrollTop = contenedor.scrollHeight;
+}
+
+function ocultarEscribiendo() {
+  const burbuja = document.getElementById("burbuja-escribiendo");
+  if (burbuja) burbuja.remove();
+}
+
 async function enviarMensaje() {
   const texto = input.value.trim();
   if (!texto) return;
@@ -50,6 +65,7 @@ async function enviarMensaje() {
   input.value = "";
   botonEnviar.disabled = true;
   estadoEl.textContent = "escribiendo...";
+  mostrarEscribiendo();
 
   try {
     const res = await fetch("/api/chat", {
@@ -59,6 +75,7 @@ async function enviarMensaje() {
     });
     const data = await res.json();
 
+    ocultarEscribiendo();
     agregarBurbuja(data.respuesta, "agente", data.escalar);
     if (data.escalar) {
       agregarAviso("🔔 Se avisó a un encargado humano para que revise esta conversación");
@@ -67,6 +84,7 @@ async function enviarMensaje() {
       agregarAviso("🛒 Pedido registrado, a la espera de confirmación del encargado");
     }
   } catch (err) {
+    ocultarEscribiendo();
     agregarBurbuja("No se pudo conectar con el agente. ¿Está corriendo el servidor?", "agente", true);
   } finally {
     estadoEl.textContent = "en línea";

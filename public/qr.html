@@ -42,6 +42,16 @@
     font-size: 0.85rem;
     color: #888;
   }
+  .url-actual {
+    margin-top: 4px;
+    font-size: 0.78rem;
+    color: #9ca3af;
+    word-break: break-all;
+  }
+  .url-actual.url-alerta {
+    color: #b91c1c;
+    font-weight: 600;
+  }
   footer {
     margin-top: 24px;
     font-size: 0.85rem;
@@ -58,16 +68,33 @@
       <img id="qr" src="/api/qr-whatsapp" alt="Código QR para probar el asistente" />
     </div>
     <p class="estado" id="estado"></p>
+    <p class="url-actual" id="url-actual"></p>
     <footer>Proyecto de expo — Agente de IA para un negocio</footer>
   </div>
   <script>
     const img = document.getElementById("qr");
     const estado = document.getElementById("estado");
+    const urlActual = document.getElementById("url-actual");
+
     img.addEventListener("error", () => {
       estado.textContent = "No se pudo generar el QR, reintentando...";
       setTimeout(() => { img.src = "/api/qr-whatsapp?t=" + Date.now(); }, 3000);
     });
     img.addEventListener("load", () => { estado.textContent = ""; });
+
+    // Muestra a qué URL apunta el QR ahora mismo, para detectar a simple
+    // vista si quedó apuntando a "localhost" en vez de a la URL de ngrok.
+    fetch("/api/public-url")
+      .then((r) => r.json())
+      .then((data) => {
+        const url = data.url || "";
+        urlActual.textContent = "Apunta a: " + url;
+        if (url.includes("localhost") || url.includes("127.0.0.1")) {
+          urlActual.classList.add("url-alerta");
+          urlActual.textContent += " ⚠️ (nadie de afuera va a poder abrir esto — configurá PUBLIC_URL en el .env con la URL de ngrok)";
+        }
+      })
+      .catch(() => { urlActual.textContent = ""; });
   </script>
 </body>
 </html>

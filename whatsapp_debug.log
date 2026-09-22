@@ -6,3 +6,10 @@
 2026-09-17T09:53:43.118045+00:00 | to=542604597817 | status=200 | body={"messaging_product":"whatsapp","contacts":[{"input":"542604597817","wa_id":"5492604597817"}],"messages":[{"id":"wamid.HBgNNTQ5MjYwNDU5NzgxNxUCABEYEjg5MjM3ODU1RjI2NUMwMzQ4NgA="}]}
 2026-09-17T09:54:19.243449+00:00 | to=542604597817 | status=200 | body={"messaging_product":"whatsapp","contacts":[{"input":"542604597817","wa_id":"5492604597817"}],"messages":[{"id":"wamid.HBgNNTQ5MjYwNDU5NzgxNxUCABEYEjVBQTk4RkQzMERCN0VERURERQA="}]}
 2026-09-17T09:58:54.678464+00:00 | to=542604597817 | status=200 | body={"messaging_product":"whatsapp","contacts":[{"input":"542604597817","wa_id":"5492604597817"}],"messages":[{"id":"wamid.HBgNNTQ5MjYwNDU5NzgxNxUCABEYEjk4MkY3NjVCQ0VCMUQ2RTBCNwA="}]}
+2026-09-18T17:12:00.445028+00:00 | to=542604597817 | status=401 | body={"error":{"message":"Authentication Error","code":190,"type":"OAuthException","fbtrace_id":"AwaGy4YMPzkCVvFr2uNCfGG"}}
+2026-09-18T17:12:02.002352+00:00 | to=542604597817 | status=401 | body={"error":{"message":"Authentication Error","code":190,"type":"OAuthException","fbtrace_id":"A_UrUloLA5-UHpOM-hAztVl"}}
+2026-09-18T17:13:35.644903+00:00 | to=542604597817 | status=401 | body={"error":{"message":"Authentication Error","code":190,"type":"OAuthException","fbtrace_id":"AqJ37zSGio31UsmthnPNcjC"}}
+2026-09-18T17:13:37.768985+00:00 | to=542604597817 | status=401 | body={"error":{"message":"Authentication Error","code":190,"type":"OAuthException","fbtrace_id":"AzxEhR-yl7FDyYRn9Grczue"}}
+2026-09-18T19:52:59.558063+00:00 | to=542604597817 | status=401 | body={"error":{"message":"Authentication Error","code":190,"type":"OAuthException","fbtrace_id":"Ao2h7iJdcbL1F2pUUCYT9Kl"}}
+2026-09-18T20:19:28.867932+00:00 | to=542604597817 | status=401 | body={"error":{"message":"Authentication Error","code":190,"type":"OAuthException","fbtrace_id":"AaLC3QbigzIkD-eemgH95cG"}}
+2026-09-18T20:19:28.925343+00:00 | to=542604597817 | status=401 | body={"error":{"message":"Authentication Error","code":190,"type":"OAuthException","fbtrace_id":"AhOjOTGXRNDkPozz1aTpuKC"}}

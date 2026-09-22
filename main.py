@@ -10,6 +10,7 @@ Servidor FastAPI del agente. Expone:
 
 import os
 import socket
+from datetime import datetime, timezone
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -43,7 +44,16 @@ from fastapi.responses import FileResponse, PlainTextResponse, Response, Streami
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from agent import leer_json, guardar_json, responder_mensaje, LOGS_PATH, PEDIDOS_PATH, PEDIDOS_XLSX_PATH
+from agent import (
+    leer_json,
+    guardar_json,
+    responder_mensaje,
+    actualizar_estado_pedido_excel,
+    LOGS_PATH,
+    PEDIDOS_PATH,
+    PEDIDOS_XLSX_PATH,
+    WHATSAPP_STATUS_PATH,
+)
 from meta_whatsapp import enviar_mensaje_whatsapp
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -137,6 +147,39 @@ def obtener_pedidos():
     return leer_json(PEDIDOS_PATH, [])
 
 
+@app.get("/api/whatsapp-status")
+def whatsapp_status():
+    """Estado del ultimo intento de envio por WhatsApp real (Meta Cloud API).
+    Lo usa dashboard.html para avisar apenas el token de acceso se vence, en
+    vez de que se note recien cuando un mensaje real no llega."""
+    return leer_json(WHATSAPP_STATUS_PATH, {"ok": None, "motivo": "", "fecha": None})
+
+
+@app.get("/api/stats")
+def stats():
+    """Metricas para la fila de KPIs del panel del dueno."""
+    logs = leer_json(LOGS_PATH, [])
+    pedidos = leer_json(PEDIDOS_PATH, [])
+
+    hoy = datetime.now(timezone.utc).date().isoformat()
+    mensajes_hoy = sum(1 for l in logs if str(l.get("fecha", "")).startswith(hoy))
+    resueltos = sum(1 for l in logs if not l.get("escalar"))
+    escalados = sum(1 for l in logs if l.get("escalar"))
+    pedidos_pendientes = sum(1 for p in pedidos if p.get("estado") == "pendiente")
+    ingresos_confirmados = sum(
+        p.get("total", 0) for p in pedidos if p.get("estado") == "confirmado"
+    )
+
+    return {
+        "mensajes_hoy": mensajes_hoy,
+        "resueltos": resueltos,
+        "escalados": escalados,
+        "total_conversaciones": resueltos + escalados,
+        "pedidos_pendientes": pedidos_pendientes,
+        "ingresos_confirmados": ingresos_confirmados,
+    }
+
+
 @app.get("/api/pedidos/excel")
 def descargar_pedidos_excel():
     """Descarga el Excel con todos los pedidos (data/pedidos.xlsx)."""
@@ -149,14 +192,32 @@ def descargar_pedidos_excel():
     )
 
 
+def obtener_url_publica(request: Request) -> str:
+    """Devuelve la URL pública del sistema (sin / al final).
+
+    Si está configurada la variable de entorno PUBLIC_URL (la URL que da
+    ngrok), esa manda siempre, sin importar cómo se haya abierto la página
+    que la pide -- así el QR nunca apunta por error a localhost. Si no está
+    configurada, usa la misma URL/host con la que se accedió a esta
+    request (sirve para probar por IP local sin ngrok)."""
+    base = os.getenv("PUBLIC_URL")
+    return base.rstrip("/") if base else str(request.base_url).rstrip("/")
+
+
+@app.get("/api/public-url")
+def public_url(request: Request):
+    """La URL pública que está usando el sistema ahora mismo. La usa
+    qr.html para mostrar en pantalla a dónde apunta el QR, y así detectar
+    a simple vista si falta configurar PUBLIC_URL."""
+    return {"url": obtener_url_publica(request)}
+
+
 @app.get("/api/qr-whatsapp")
 def qr_whatsapp(request: Request):
-    """Genera un QR que apunta al WhatsApp simulado, usando la misma
-    URL/host con la que se accedió a esta página. Así, si esta pantalla
-    se abre con la IP de la red local o con la URL de ngrok, el QR
-    apunta automáticamente a esa misma dirección (funciona para ambas
-    sin tener que hardcodear nada)."""
-    url_whatsapp = f"{request.base_url}whatsapp.html"
+    """Genera un QR que apunta al WhatsApp simulado, siempre usando
+    obtener_url_publica() (ver arriba) para que sea consistente con lo
+    que muestra /api/public-url."""
+    url_whatsapp = f"{obtener_url_publica(request)}/whatsapp.html"
     img = qrcode.make(url_whatsapp, box_size=10, border=2)
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
@@ -172,6 +233,10 @@ def actualizar_estado_pedido(pedido_id: str, payload: EstadoPedido):
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     pedido["estado"] = payload.estado
     guardar_json(PEDIDOS_PATH, pedidos)
+    # Mantiene sincronizado el Excel que se descarga desde el panel, que
+    # antes se quedaba siempre en "pendiente" aunque se confirmara/rechazara
+    # el pedido en pedidos.json.
+    actualizar_estado_pedido_excel(pedido_id, payload.estado)
     return pedido
 
 

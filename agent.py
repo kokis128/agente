@@ -6,6 +6,7 @@ llama a Gemini, interpreta la respuesta y decide si hay que
 avisarle a un humano (escalar) o registrar un pedido.
 """
 
+import asyncio
 import json
 import os
 import random
@@ -26,12 +27,30 @@ PRODUCTOS_PATH = DATA_DIR / "productos.json"
 LOGS_PATH = DATA_DIR / "logs.json"
 PEDIDOS_PATH = DATA_DIR / "pedidos.json"
 PEDIDOS_XLSX_PATH = DATA_DIR / "pedidos.xlsx"
+WHATSAPP_STATUS_PATH = DATA_DIR / "whatsapp_status.json"
 
 DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
+
+# Gemini (sobre todo en el tier gratis) devuelve 503 "alta demanda" o un
+# 429 de limite de uso de vez en cuando -- son errores transitorios que la
+# propia Google recomienda reintentar ("please try again later"), asi que
+# antes de rendirse y avisarle al cliente que hubo un problema, reintentamos
+# unas pocas veces con una espera corta entre intentos.
+MAX_INTENTOS_GEMINI = 3
+ESPERA_BASE_REINTENTO_SEGUNDOS = 1.5
+CODIGOS_TRANSITORIOS_GEMINI = {429, 500, 503}
 
 # Historial de conversacion por cliente (en memoria; alcanza para la demo).
 # clave: id de sesion (telefono simulado o numero real de WhatsApp)
 historiales: dict[str, list[dict]] = {}
+
+# Guarda el ultimo pedido registrado por cliente (en memoria) para no
+# duplicarlo si el modelo vuelve a incluirlo en mensajes siguientes de la
+# misma conversacion (ej: el cliente agradece o pregunta otra cosa y Gemini
+# repite el resumen del pedido en su respuesta JSON).
+# clave: cliente -> {"items": tupla normalizada, "total": float, "ts": epoch}
+ultimos_pedidos_registrados: dict[str, dict] = {}
+VENTANA_DEDUPE_PEDIDO_SEGUNDOS = 1800  # 30 minutos
 
 
 class ItemPedido(BaseModel):
@@ -89,7 +108,12 @@ CATÁLOGO Y PRECIOS ACTUALES:
 REGLAS IMPORTANTES:
 1. Solo respondé con información real del catálogo y los datos del negocio de arriba. Si te preguntan
    por un producto que NO está en el catálogo, decilo con honestidad y no inventes precio ni stock.
-2. Si el cliente quiere hacer un pedido, confirmá los productos, cantidades y el total, y marcalo como pedido.
+2. Si el cliente quiere hacer un pedido, confirmá los productos, cantidades y el total, y marcalo
+   como pedido. Hacé esto SOLO en el mensaje donde confirmás ese pedido por primera vez. En los
+   mensajes siguientes de la misma conversación (el cliente agradece, pregunta otra cosa, saluda,
+   etc.) dejá "pedido" en null -- no repitas el mismo pedido de nuevo. Si el cliente agrega o
+   cambia productos, ahí sí mandá el pedido actualizado completo (con todos los items, no solo los
+   nuevos).
 3. Marcá "escalar": true (para que un empleado humano intervenga) cuando:
    - El cliente pide algo que no podés resolver vos (reclamos, devoluciones, preguntas raras, precios
      especiales, algo fuera del catálogo).
@@ -106,6 +130,34 @@ Respondé SIEMPRE y ÚNICAMENTE con un JSON válido, sin texto extra, con esta f
   "motivo": "si escalar es true, explicá brevemente por qué; si es false, dejalo vacío",
   "pedido": null o {{ "items": [{{"producto": "nombre", "cantidad": numero}}], "total": numero }}
 }}"""
+
+
+async def _post_gemini_con_reintentos(client: httpx.AsyncClient, url: str, body: dict) -> httpx.Response:
+    """Manda el POST a Gemini reintentando si la respuesta es un error
+    transitorio (503/429/500) o si falla la conexion/timeout. No reintenta
+    errores permanentes (401 token invalido, 404 modelo no existe, etc.) --
+    esos se devuelven tal cual en el primer intento."""
+    ultima_respuesta = None
+    for intento in range(1, MAX_INTENTOS_GEMINI + 1):
+        es_ultimo_intento = intento == MAX_INTENTOS_GEMINI
+        try:
+            ultima_respuesta = await client.post(url, json=body)
+        except (httpx.TimeoutException, httpx.TransportError) as e:
+            if es_ultimo_intento:
+                raise
+            print(
+                f"[agent] Intento {intento}/{MAX_INTENTOS_GEMINI} a Gemini fallo por red "
+                f"({type(e).__name__}), reintentando..."
+            )
+        else:
+            if ultima_respuesta.status_code not in CODIGOS_TRANSITORIOS_GEMINI or es_ultimo_intento:
+                return ultima_respuesta
+            print(
+                f"[agent] Intento {intento}/{MAX_INTENTOS_GEMINI} a Gemini fallo con "
+                f"{ultima_respuesta.status_code} (error transitorio), reintentando..."
+            )
+        await asyncio.sleep(ESPERA_BASE_REINTENTO_SEGUNDOS * intento)
+    return ultima_respuesta
 
 
 async def llamar_gemini(system_prompt: str, historial: list[dict]) -> ResultadoAgente:
@@ -138,7 +190,7 @@ async def llamar_gemini(system_prompt: str, historial: list[dict]) -> ResultadoA
     }
 
     async with httpx.AsyncClient(timeout=45) as client:
-        res = await client.post(url, json=body)
+        res = await _post_gemini_con_reintentos(client, url, body)
 
     if res.status_code != 200:
         raise RuntimeError(f"Gemini respondió {res.status_code}: {res.text}")
@@ -200,6 +252,48 @@ def registrar_pedido_excel(pedido_id: str, cliente: str, pedido: Pedido, fecha_i
         print(f"[agent] No se pudo actualizar pedidos.xlsx: {e}")
 
 
+def actualizar_estado_pedido_excel(pedido_id: str, estado: str):
+    """Actualiza la columna Estado de data/pedidos.xlsx cuando el dueno
+    confirma o rechaza un pedido desde el panel, para que el Excel no se
+    quede desincronizado de pedidos.json (que es la fuente de verdad). Si
+    falla, no rompe el flujo del panel."""
+    try:
+        if not PEDIDOS_XLSX_PATH.exists():
+            return
+        wb = load_workbook(PEDIDOS_XLSX_PATH)
+        ws = wb.active
+        encontrado = False
+        for fila in ws.iter_rows(min_row=2):
+            if fila[0].value == pedido_id:
+                fila[5].value = estado  # columna F: Estado
+                encontrado = True
+                break
+        if encontrado:
+            wb.save(PEDIDOS_XLSX_PATH)
+        else:
+            print(f"[agent] No se encontro el pedido {pedido_id} en pedidos.xlsx para actualizar su estado")
+    except Exception as e:
+        print(f"[agent] No se pudo actualizar el estado en pedidos.xlsx: {e}")
+
+
+def _items_normalizados(items: list[ItemPedido]) -> tuple:
+    return tuple(sorted((i.producto.strip().lower(), i.cantidad) for i in items))
+
+
+def _pedido_ya_registrado(cliente: str, pedido: Pedido) -> bool:
+    """True si este mismo pedido (mismos productos/cantidades y mismo total)
+    ya se registro hace poco para este cliente -- evita duplicar el pedido en
+    pedidos.json/pedidos.xlsx cuando el modelo repite el resumen en un mensaje
+    posterior de la misma conversacion."""
+    anterior = ultimos_pedidos_registrados.get(cliente)
+    if not anterior:
+        return False
+    mismo_total = abs(anterior["total"] - pedido.total) < 0.01
+    mismos_items = anterior["items"] == _items_normalizados(pedido.items)
+    dentro_de_ventana = (time.time() - anterior["ts"]) < VENTANA_DEDUPE_PEDIDO_SEGUNDOS
+    return mismo_total and mismos_items and dentro_de_ventana
+
+
 def registrar_pedido(cliente: str, pedido: Pedido):
     pedidos = leer_json(PEDIDOS_PATH, [])
     sufijo = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
@@ -244,7 +338,18 @@ async def responder_mensaje(cliente: str, mensaje: str, canal: str) -> Resultado
         del historial[: len(historial) - 20]
 
     if resultado.pedido:
-        registrar_pedido(cliente, resultado.pedido)
+        if _pedido_ya_registrado(cliente, resultado.pedido):
+            print(
+                f"[agent] Pedido repetido para {cliente} (mismos items y total ya "
+                "registrados hace poco), no se duplica en pedidos.json"
+            )
+        else:
+            registrar_pedido(cliente, resultado.pedido)
+            ultimos_pedidos_registrados[cliente] = {
+                "items": _items_normalizados(resultado.pedido.items),
+                "total": resultado.pedido.total,
+                "ts": time.time(),
+            }
 
     registrar_log(
         {

@@ -5,7 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Panel del dueño - Kiosco 24</title>
 <style>
-  :root { color-scheme: light; }
+  :root {
+    color-scheme: light;
+    --good: #0ca30c;
+    --good-bg: #dcfce7;
+    --good-ink: #166534;
+    --critical: #d03b3b;
+    --critical-bg: #fee2e2;
+    --critical-ink: #991b1b;
+    --surface: #ffffff;
+    --ink-primary: #0b0b0b;
+    --ink-secondary: #52514e;
+    --ink-muted: #898781;
+  }
   * { box-sizing: border-box; }
   body {
     margin: 0;
@@ -28,6 +40,115 @@
   main { padding: 24px; max-width: 1100px; margin: 0 auto; }
   section { margin-bottom: 32px; }
   h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.04em; color: #374151; }
+
+  /* --- Banner de alerta del token de WhatsApp --- */
+  #banner-token {
+    display: none;
+    align-items: flex-start;
+    gap: 12px;
+    background: var(--critical-bg);
+    border-left: 4px solid var(--critical);
+    color: var(--critical-ink);
+    padding: 14px 18px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+  #banner-token .icono { font-size: 1.3rem; }
+  #banner-token strong { display: block; margin-bottom: 2px; }
+
+  /* --- KPIs --- */
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 16px;
+  }
+  .kpi-tile {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  .kpi-label {
+    font-size: 0.76rem;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .kpi-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--ink-primary);
+    line-height: 1.1;
+  }
+  .kpi-value .unidad { font-size: 1.1rem; font-weight: 600; color: var(--ink-secondary); }
+
+  /* --- Gráfico resueltos vs escalados --- */
+  .chart-card {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 22px 26px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .chart-hero { min-width: 150px; }
+  .chart-hero .valor { font-size: 2.9rem; font-weight: 700; color: var(--good-ink); line-height: 1; }
+  .chart-hero .etiqueta { font-size: 0.82rem; color: var(--ink-secondary); margin-top: 6px; max-width: 190px; }
+  .chart-cuerpo { flex: 1; min-width: 240px; }
+  .bar-stack {
+    display: flex;
+    height: 22px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #eee;
+    width: 100%;
+  }
+  .bar-seg {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: white;
+    transition: flex-basis 0.5s ease;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .bar-seg.good { background: var(--good); }
+  .bar-seg.critical { background: var(--critical); }
+  .bar-gap { width: 2px; background: var(--surface); flex: 0 0 2px; }
+  .chart-legend {
+    display: flex;
+    gap: 22px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+  }
+  .chart-legend .item { display: flex; align-items: center; gap: 6px; color: var(--ink-secondary); }
+  .chart-legend .valor { font-weight: 700; color: var(--ink-primary); }
+  .chart-legend .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .chart-legend .swatch.good { background: var(--good); }
+  .chart-legend .swatch.critical { background: var(--critical); }
+  .toggle-tabla {
+    background: none;
+    border: none;
+    color: #2563eb;
+    font-size: 0.78rem;
+    cursor: pointer;
+    padding: 0;
+    margin-top: 10px;
+    text-decoration: underline;
+  }
+  table.tabla-chart { margin-top: 10px; border-collapse: collapse; font-size: 0.82rem; }
+  table.tabla-chart th, table.tabla-chart td { padding: 4px 12px 4px 0; text-align: left; }
+  table.tabla-chart th { color: var(--ink-muted); font-weight: 600; }
+
   .tabla-wrap {
     background: white;
     border-radius: 12px;
@@ -38,6 +159,11 @@
   th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid #eee; vertical-align: top; }
   th { background: #fafafa; color: #555; font-weight: 600; }
   tr.escalado { background: #fff5f5; }
+  tr.fila-nueva { animation: aparecer 0.6s ease; }
+  @keyframes aparecer {
+    from { background-color: #fef9c3; }
+    to { background-color: transparent; }
+  }
   .badge {
     display: inline-block;
     padding: 2px 8px;
@@ -73,6 +199,62 @@
     </div>
   </header>
   <main>
+    <div id="banner-token">
+      <span class="icono">⚠️</span>
+      <div>
+        <strong>El WhatsApp real no está enviando mensajes</strong>
+        <span id="banner-token-motivo"></span>
+      </div>
+    </div>
+
+    <section>
+      <h2>Resumen de hoy</h2>
+      <div class="kpis">
+        <div class="kpi-tile">
+          <div class="kpi-label">Mensajes hoy</div>
+          <div class="kpi-value" id="kpi-mensajes">0</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Resuelto por el agente</div>
+          <div class="kpi-value"><span id="kpi-porcentaje">0</span><span class="unidad">%</span></div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Pedidos pendientes</div>
+          <div class="kpi-value" id="kpi-pendientes">0</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Ingresos confirmados</div>
+          <div class="kpi-value"><span class="unidad">$</span><span id="kpi-ingresos">0</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Resuelto por el agente vs. escalado a un humano</h2>
+      <div class="chart-card">
+        <div class="chart-hero">
+          <div class="valor" id="chart-hero-valor">0%</div>
+          <div class="etiqueta">de las conversaciones las resuelve solo el agente, sin intervención humana</div>
+        </div>
+        <div class="chart-cuerpo">
+          <div class="bar-stack" id="bar-stack" title="">
+            <div class="bar-seg good" id="bar-seg-good"></div>
+            <div class="bar-gap"></div>
+            <div class="bar-seg critical" id="bar-seg-critical"></div>
+          </div>
+          <div class="chart-legend">
+            <span class="item"><span class="swatch good"></span>🤖 Resuelto por el agente: <span class="valor" id="legend-resueltos">0</span></span>
+            <span class="item"><span class="swatch critical"></span>🙋 Requiere humano: <span class="valor" id="legend-escalados">0</span></span>
+          </div>
+          <button class="toggle-tabla" id="toggle-tabla-chart">Ver como tabla</button>
+          <table class="tabla-chart" id="tabla-chart" hidden>
+            <thead><tr><th>Categoría</th><th>Conversaciones</th><th>%</th></tr></thead>
+            <tbody id="tabla-chart-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <section>
       <h2>Pedidos pendientes de confirmar</h2>
       <div class="tabla-wrap">

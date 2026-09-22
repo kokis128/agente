@@ -2,9 +2,11 @@
 main.py
 
 Servidor FastAPI del agente. Expone:
-- El WhatsApp simulado (public/whatsapp.html) -> POST /api/chat
+- El WhatsApp simulado (public/whatsapp.html) e Instagram simulado
+  (public/instagram.html) -> POST /api/chat
 - El webhook real de WhatsApp vía Meta WhatsApp Cloud API -> /webhook/meta
 - El webhook real de WhatsApp vía Twilio Sandbox (alternativa) -> POST /webhook/whatsapp
+- El webhook real de Instagram Direct vía Meta -> /webhook/instagram
 - El panel del dueño (public/dashboard.html) -> GET /api/logs, /api/pedidos
 """
 
@@ -53,8 +55,10 @@ from agent import (
     PEDIDOS_PATH,
     PEDIDOS_XLSX_PATH,
     WHATSAPP_STATUS_PATH,
+    INSTAGRAM_STATUS_PATH,
 )
 from meta_whatsapp import enviar_mensaje_whatsapp
+from instagram_meta import enviar_mensaje_instagram
 
 BASE_DIR = Path(__file__).resolve().parent
 PUBLIC_DIR = BASE_DIR / "public"
@@ -65,6 +69,7 @@ app = FastAPI(title="Agente IA - Kiosco")
 class MensajeChat(BaseModel):
     cliente: str
     mensaje: str
+    canal: str = "whatsapp-simulado"  # o "instagram-simulado"
 
 
 class EstadoPedido(BaseModel):
@@ -73,8 +78,8 @@ class EstadoPedido(BaseModel):
 
 @app.post("/api/chat")
 async def chat(payload: MensajeChat):
-    """Usado por el WhatsApp simulado en el navegador."""
-    resultado = await responder_mensaje(payload.cliente, payload.mensaje, "whatsapp-simulado")
+    """Usado por el WhatsApp simulado y el Instagram simulado en el navegador."""
+    resultado = await responder_mensaje(payload.cliente, payload.mensaje, payload.canal)
     return resultado
 
 
@@ -137,6 +142,53 @@ async def webhook_whatsapp(From: str = Form(...), Body: str = Form("")):
     return Response(content=twiml, media_type="text/xml")
 
 
+@app.get("/webhook/instagram")
+def verificar_webhook_instagram(request: Request):
+    """Meta llama a esta URL (GET) al configurar el webhook de Instagram,
+    igual que con WhatsApp. Si no configuraste INSTAGRAM_VERIFY_TOKEN por
+    separado, se reutiliza WHATSAPP_VERIFY_TOKEN (misma app de Meta)."""
+    params = request.query_params
+    modo = params.get("hub.mode")
+    token_recibido = params.get("hub.verify_token")
+    challenge = params.get("hub.challenge", "")
+
+    verify_token = os.getenv("INSTAGRAM_VERIFY_TOKEN") or os.getenv("WHATSAPP_VERIFY_TOKEN", "")
+    if modo == "subscribe" and verify_token and token_recibido == verify_token:
+        return PlainTextResponse(challenge)
+    raise HTTPException(status_code=403, detail="Token de verificación inválido")
+
+
+@app.post("/webhook/instagram")
+async def webhook_instagram(payload: dict):
+    """Webhook real de Instagram Direct via Meta (misma app que WhatsApp,
+    con el producto "Instagram" agregado). Configuracion en
+    https://developers.facebook.com/apps -> tu app -> Instagram ->
+    Webhooks. Ver README.md para el paso a paso."""
+    try:
+        entry = payload["entry"][0]
+        eventos = entry.get("messaging", [])
+        if not eventos:
+            return {"status": "ignorado"}
+
+        evento = eventos[0]
+        mensaje = evento.get("message") or {}
+        # "is_echo" son los mensajes que el propio negocio mando (si en algun
+        # momento se suscribe tambien el campo message_echoes) -- ignorarlos
+        # evita que el agente se responda a si mismo en bucle.
+        if mensaje.get("is_echo") or not mensaje.get("text"):
+            return {"status": "ignorado"}
+
+        remitente = evento["sender"]["id"]
+        texto = mensaje["text"]
+
+        resultado = await responder_mensaje(remitente, texto, "instagram-real")
+        await enviar_mensaje_instagram(remitente, resultado.respuesta)
+    except Exception as err:  # noqa: BLE001 - no queremos que Meta reciba un 500
+        print(f"Error en webhook de Instagram: {err}")
+
+    return {"status": "ok"}
+
+
 @app.get("/api/logs")
 def obtener_logs():
     return leer_json(LOGS_PATH, [])
@@ -153,6 +205,12 @@ def whatsapp_status():
     Lo usa dashboard.html para avisar apenas el token de acceso se vence, en
     vez de que se note recien cuando un mensaje real no llega."""
     return leer_json(WHATSAPP_STATUS_PATH, {"ok": None, "motivo": "", "fecha": None})
+
+
+@app.get("/api/instagram-status")
+def instagram_status():
+    """Igual que /api/whatsapp-status pero para Instagram Direct."""
+    return leer_json(INSTAGRAM_STATUS_PATH, {"ok": None, "motivo": "", "fecha": None})
 
 
 @app.get("/api/stats")

@@ -42,7 +42,7 @@
   h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.04em; color: #374151; }
 
   /* --- Banner de alerta del token de WhatsApp --- */
-  #banner-token {
+  #banner-token, #banner-token-instagram {
     display: none;
     align-items: flex-start;
     gap: 12px;
@@ -55,8 +55,8 @@
     font-size: 0.9rem;
     line-height: 1.45;
   }
-  #banner-token .icono { font-size: 1.3rem; }
-  #banner-token strong { display: block; margin-bottom: 2px; }
+  #banner-token .icono, #banner-token-instagram .icono { font-size: 1.3rem; }
+  #banner-token strong, #banner-token-instagram strong { display: block; margin-bottom: 2px; }
 
   /* --- KPIs --- */
   .kpis {
@@ -204,6 +204,13 @@
       <div>
         <strong>El WhatsApp real no está enviando mensajes</strong>
         <span id="banner-token-motivo"></span>
+      </div>
+    </div>
+    <div id="banner-token-instagram">
+      <span class="icono">⚠️</span>
+      <div>
+        <strong>El Instagram real no está enviando mensajes</strong>
+        <span id="banner-token-instagram-motivo"></span>
       </div>
     </div>
 

@@ -179,14 +179,16 @@ async function cargarStats() {
 
 const elBanner = document.getElementById("banner-token");
 const elBannerMotivo = document.getElementById("banner-token-motivo");
+const elBannerInstagram = document.getElementById("banner-token-instagram");
+const elBannerInstagramMotivo = document.getElementById("banner-token-instagram-motivo");
 
-async function cargarEstadoWhatsapp() {
+async function cargarEstadoCanal(endpoint, elBanner, elMotivo) {
   try {
-    const res = await fetch("/api/whatsapp-status");
+    const res = await fetch(endpoint);
     const estado = await res.json();
     if (estado.ok === false) {
       elBanner.style.display = "flex";
-      elBannerMotivo.textContent = estado.motivo || "Revisá la consola del servidor para más detalle.";
+      elMotivo.textContent = estado.motivo || "Revisá la consola del servidor para más detalle.";
     } else {
       elBanner.style.display = "none";
     }
@@ -199,7 +201,8 @@ function actualizarTodo() {
   cargarPedidos();
   cargarLogs();
   cargarStats();
-  cargarEstadoWhatsapp();
+  cargarEstadoCanal("/api/whatsapp-status", elBanner, elBannerMotivo);
+  cargarEstadoCanal("/api/instagram-status", elBannerInstagram, elBannerInstagramMotivo);
 }
 
 actualizarTodo();

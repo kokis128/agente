@@ -28,6 +28,7 @@ LOGS_PATH = DATA_DIR / "logs.json"
 PEDIDOS_PATH = DATA_DIR / "pedidos.json"
 PEDIDOS_XLSX_PATH = DATA_DIR / "pedidos.xlsx"
 WHATSAPP_STATUS_PATH = DATA_DIR / "whatsapp_status.json"
+INSTAGRAM_STATUS_PATH = DATA_DIR / "instagram_status.json"
 
 DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
 
@@ -93,7 +94,7 @@ def construir_system_prompt() -> str:
     )
 
     return f"""Sos el asistente virtual de "{negocio.get('nombre')}", un kiosco/almacen de barrio.
-Atendes a clientes por WhatsApp. Hablá en español rioplatense, de forma breve, amable y natural,
+Atendes a clientes por WhatsApp e Instagram (mensajes directos). Hablá en español rioplatense, de forma breve, amable y natural,
 como lo haría un empleado del kiosco. No uses lenguaje robótico ni te presentes como "modelo de IA".
 
 DATOS DEL NEGOCIO:

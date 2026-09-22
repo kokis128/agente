@@ -1,14 +1,15 @@
 # 🤖 Agente de IA para un kiosco (proyecto de expo)
 
-Un agente de inteligencia artificial que atiende WhatsApp para un kiosco/almacén:
-responde preguntas frecuentes, cotiza productos del catálogo, toma pedidos, y avisa
-a un humano cuando no puede resolver algo solo. Incluye un panel para que el
-"dueño del negocio" supervise en vivo todo lo que contesta el agente.
+Un agente de inteligencia artificial que atiende WhatsApp e Instagram para un
+kiosco/almacén: responde preguntas frecuentes, cotiza productos del catálogo,
+toma pedidos, y avisa a un humano cuando no puede resolver algo solo. Incluye
+un panel para que el "dueño del negocio" supervise en vivo todo lo que
+contesta el agente, en ambos canales.
 
 ## Arquitectura
 
 ```
-Cliente (WhatsApp real o simulado)
+Cliente (WhatsApp o Instagram, real o simulado)
         │
         ▼
    FastAPI (main.py)  ──────────────┐
@@ -25,14 +26,19 @@ data/logs.json + data/pedidos.json       (lo que el agente "hizo")
 ```
 
 - **main.py**: servidor FastAPI. Recibe mensajes desde varios canales (WhatsApp
-  simulado, WhatsApp real vía Meta Cloud API) y expone el panel del dueño.
+  simulado, WhatsApp real vía Meta Cloud API, Instagram simulado, Instagram
+  real vía Meta) y expone el panel del dueño.
 - **agent.py**: arma el contexto del negocio, le pregunta a Gemini, y decide si
-  hay que escalar a un humano o registrar un pedido.
+  hay que escalar a un humano o registrar un pedido -- es el mismo "cerebro"
+  sin importar de qué canal vino el mensaje.
 - **meta_whatsapp.py**: manda la respuesta del agente por WhatsApp real usando
   la API de Meta (solo se usa si configuran el webhook del punto 5).
+- **instagram_meta.py**: igual que meta_whatsapp.py pero para Instagram Direct
+  (solo se usa si configuran el webhook del punto 6).
 - **data/**: la "base de datos" del proyecto, en archivos JSON simples (sin
   necesidad de instalar una base de datos real).
-- **public/**: las pantallas (WhatsApp simulado y panel del dueño).
+- **public/**: las pantallas (WhatsApp simulado, Instagram simulado y panel
+  del dueño).
 
 ## 1. Instalación
 
@@ -78,11 +84,13 @@ Abrir en el navegador:
 
 - http://localhost:8000 → pantalla de inicio
 - http://localhost:8000/whatsapp.html → WhatsApp simulado (cliente)
+- http://localhost:8000/instagram.html → Instagram simulado (cliente)
 - http://localhost:8000/dashboard.html → panel del dueño
 
-**Tip para la demo**: abrir las dos pantallas en ventanas separadas, escribir
-como cliente en una, y ver en la otra cómo el agente registra la conversación
-en vivo (el panel se actualiza solo cada 3 segundos).
+**Tip para la demo**: abrir el chat simulado y el panel en ventanas separadas,
+escribir como cliente en una, y ver en la otra cómo el agente registra la
+conversación en vivo (el panel se actualiza solo cada 3 segundos). Funciona
+igual para WhatsApp e Instagram simulados.
 
 ## 4. Personalizar el negocio
 
@@ -148,6 +156,52 @@ número de prueba de Meta. El mensaje va a llegar al webhook, el agente lo va
 a procesar igual que en la demo simulada, y la respuesta va a volver por
 WhatsApp de verdad.
 
+## 6. (Opcional / bonus) Conectar Instagram real con Instagram Messaging API
+
+También gratis, y reutiliza la **misma app de Meta for Developers** que ya
+crearon para WhatsApp -- no hace falta crear una app nueva. Como con
+WhatsApp, siempre queda como respaldo la demo simulada (`/instagram.html`).
+
+> Requisito: una cuenta de Instagram **profesional** (business o creador)
+> vinculada a la misma página de Facebook que usan para WhatsApp. Si ya la
+> tenían vinculada antes de este paso, van directo al Paso 2.
+
+### Paso 1 — Agregar el producto Instagram a la app
+
+1. Entrar a la misma app que ya tienen en
+   [developers.facebook.com](https://developers.facebook.com/apps).
+2. Buscar el producto **Instagram** y agregarlo ("Set up"), igual que
+   hicieron con WhatsApp.
+
+### Paso 2 — Conseguir el token que pide `.env`
+
+En **Instagram → API Setup with Facebook Login** (el nombre exacto puede
+variar un poco según cuándo lo abran, Meta cambia la interfaz seguido) van a
+poder generar un **token de acceso** para la cuenta de Instagram vinculada
+→ pegarlo en `INSTAGRAM_ACCESS_TOKEN`.
+
+`INSTAGRAM_VERIFY_TOKEN` es opcional: si lo dejan vacío, el webhook de
+Instagram reutiliza el mismo `WHATSAPP_VERIFY_TOKEN` que ya configuraron
+(total es la misma app). Solo hace falta uno propio si quieren un valor
+distinto.
+
+### Paso 3 — Configurar el webhook
+
+1. Con `ngrok http 8000` corriendo (el mismo que usan para WhatsApp), ir a
+   **Instagram → Webhooks** dentro de la app.
+2. Completar:
+   - **Callback URL**: `https://algo.ngrok-free.app/webhook/instagram`
+   - **Verify token**: el mismo valor de `WHATSAPP_VERIFY_TOKEN` (o el de
+     `INSTAGRAM_VERIFY_TOKEN` si pusieron uno distinto)
+3. **Verify and save** (el servidor tiene que estar corriendo).
+4. Suscribirse al campo **messages** para esa cuenta de Instagram.
+
+### Paso 4 — Probar
+
+Desde otra cuenta de Instagram (no la del negocio), mandarle un DM a la
+cuenta profesional. El mensaje llega al webhook, el agente lo procesa igual
+que en la demo simulada, y contesta por Instagram Direct de verdad.
+
 ## Solución de problemas
 
 **El agente siempre contesta "Uy, tuve un problema técnico..."**
@@ -179,6 +233,16 @@ viene configurado con un modelo fijo (`gemini-3.1-flash-lite`), que en las
 pruebas respondió siempre en 1-7 segundos. Si en el futuro ese modelo deja de
 existir, mejor elegir otro nombre de modelo fijo (sin "-latest") de la lista
 de arriba, en vez de un alias.
+
+**El WhatsApp o el Instagram real no mandan nada**
+
+El panel del dueño (`/dashboard.html`) muestra un cartel rojo arriba de todo
+apenas detecta que el último envío falló (token vencido, falta configurar,
+etc.), tanto para WhatsApp como para Instagram -- no hace falta ir a mirar la
+consola. La causa más común en ambos es el **token de acceso vencido**: el
+que se genera desde "API Setup" en Meta for Developers suele ser temporal
+(dura 24hs); para la expo conviene generar uno permanente (System User),
+como se menciona en los pasos de arriba.
 
 ## Ideas para explicar en la expo
 

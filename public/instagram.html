@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Instagram - Kiosco 24</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #fafafa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 16px;
+  }
+  .telefono {
+    width: 400px;
+    max-width: 100%;
+    height: 780px;
+    max-height: 92vh;
+    background: #ffffff;
+    border-radius: 28px;
+    box-shadow: 0 25px 60px rgba(0,0,0,0.35);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border: 8px solid #111;
+  }
+  .header {
+    background: #ffffff;
+    color: #111;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid #eee;
+  }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem;
+    padding: 2px;
+  }
+  .avatar span {
+    background: white;
+    border-radius: 50%;
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .header .nombre { font-weight: 600; }
+  .header .estado { font-size: 0.75rem; color: #8e8e8e; }
+  .mensajes {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #ffffff;
+  }
+  .burbuja {
+    max-width: 78%;
+    padding: 10px 14px;
+    border-radius: 20px;
+    font-size: 0.92rem;
+    line-height: 1.35;
+    white-space: pre-wrap;
+    animation: burbujaAparece 0.25s ease;
+  }
+  @keyframes burbujaAparece {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .cliente {
+    align-self: flex-end;
+    background: linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7);
+    color: white;
+  }
+  .agente { align-self: flex-start; background: #efefef; color: #111; }
+  .agente.escalado { border-left: 3px solid #ee2a7b; }
+  .aviso {
+    align-self: center;
+    background: #fff0f6;
+    color: #a3195b;
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 8px;
+    animation: burbujaAparece 0.25s ease;
+  }
+  .hora { font-size: 0.65rem; color: #8e8e8e; margin-top: 4px; text-align: right; }
+  .escribiendo {
+    align-self: flex-start;
+    background: #efefef;
+    padding: 10px 14px;
+    border-radius: 20px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    animation: burbujaAparece 0.25s ease;
+  }
+  .escribiendo .punto {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #8e8e8e;
+    animation: rebotePunto 1.2s infinite ease-in-out;
+  }
+  .escribiendo .punto:nth-child(2) { animation-delay: 0.15s; }
+  .escribiendo .punto:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes rebotePunto {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+  .barra {
+    display: flex;
+    padding: 10px;
+    gap: 8px;
+    background: #ffffff;
+    border-top: 1px solid #eee;
+  }
+  .barra input {
+    flex: 1;
+    border: 1px solid #dbdbdb;
+    border-radius: 20px;
+    padding: 12px 16px;
+    font-size: 0.9rem;
+    outline: none;
+  }
+  .barra button {
+    border: none;
+    background: linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7);
+    color: white;
+    width: 44px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.1rem;
+  }
+  .barra button:disabled { opacity: 0.5; cursor: default; }
+  .volver {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    background: white;
+    border-radius: 10px;
+    padding: 8px 14px;
+    text-decoration: none;
+    color: #ee2a7b;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+</style>
+</head>
+<body>
+  <a class="volver" href="/">← Volver</a>
+  <div class="telefono">
+    <div class="header">
+      <div class="avatar"><span>🏪</span></div>
+      <div>
+        <div class="nombre">kiosco24 · Instagram</div>
+        <div class="estado" id="estado">activo ahora</div>
+      </div>
+    </div>
+    <div class="mensajes" id="mensajes"></div>
+    <div class="barra">
+      <input id="input" type="text" placeholder="Mensaje..." autocomplete="off" />
+      <button id="enviar">➤</button>
+    </div>
+  </div>
+  <script src="instagram.js"></script>
+</body>
+</html>

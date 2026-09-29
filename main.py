@@ -56,6 +56,7 @@ from agent import (
     PEDIDOS_XLSX_PATH,
     WHATSAPP_STATUS_PATH,
     INSTAGRAM_STATUS_PATH,
+    NEGOCIO_PATH,
 )
 from meta_whatsapp import enviar_mensaje_whatsapp
 from instagram_meta import enviar_mensaje_instagram
@@ -262,6 +263,24 @@ def obtener_url_publica(request: Request) -> str:
     return base.rstrip("/") if base else str(request.base_url).rstrip("/")
 
 
+@app.get("/api/bienvenida")
+def bienvenida():
+    """Mensaje de bienvenida y sugerencias que muestran el WhatsApp y el
+    Instagram simulados apenas se abre el chat (por ejemplo, al escanear el
+    QR). Se editan en data/negocio.json ("bienvenida" y "sugerencias");
+    {nombre} se reemplaza por el nombre del negocio."""
+    negocio = leer_json(NEGOCIO_PATH, {})
+    nombre = negocio.get("nombre", "nuestro negocio")
+    texto = negocio.get(
+        "bienvenida",
+        "¡Hola! 👋 Bienvenido/a a {nombre}. ¿En qué te puedo ayudar?",
+    )
+    return {
+        "mensaje": texto.replace("{nombre}", nombre),
+        "sugerencias": negocio.get("sugerencias", []),
+    }
+
+
 @app.get("/api/public-url")
 def public_url(request: Request):
     """La URL pública que está usando el sistema ahora mismo. La usa
@@ -270,17 +289,33 @@ def public_url(request: Request):
     return {"url": obtener_url_publica(request)}
 
 
-@app.get("/api/qr-whatsapp")
-def qr_whatsapp(request: Request):
-    """Genera un QR que apunta al WhatsApp simulado, siempre usando
-    obtener_url_publica() (ver arriba) para que sea consistente con lo
-    que muestra /api/public-url."""
-    url_whatsapp = f"{obtener_url_publica(request)}/whatsapp.html"
-    img = qrcode.make(url_whatsapp, box_size=10, border=2)
+# A qué pantalla apunta el QR de cada canal.
+PAGINAS_QR = {"whatsapp": "whatsapp.html", "instagram": "instagram.html"}
+
+
+def generar_qr(url: str) -> StreamingResponse:
+    img = qrcode.make(url, box_size=10, border=2)
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
     buffer.seek(0)
     return StreamingResponse(buffer, media_type="image/png")
+
+
+@app.get("/api/qr/{canal}")
+def qr_canal(canal: str, request: Request):
+    """Genera un QR que apunta al WhatsApp o al Instagram simulado
+    (/api/qr/whatsapp o /api/qr/instagram), siempre usando
+    obtener_url_publica() para que coincida con /api/public-url."""
+    pagina = PAGINAS_QR.get(canal)
+    if pagina is None:
+        raise HTTPException(status_code=404, detail="Canal desconocido (usá whatsapp o instagram)")
+    return generar_qr(f"{obtener_url_publica(request)}/{pagina}")
+
+
+@app.get("/api/qr-whatsapp")
+def qr_whatsapp(request: Request):
+    """Se mantiene por compatibilidad: igual que /api/qr/whatsapp."""
+    return qr_canal("whatsapp", request)
 
 
 @app.post("/api/pedidos/{pedido_id}/estado")

@@ -61,6 +61,7 @@ async function enviarMensaje() {
   const texto = input.value.trim();
   if (!texto) return;
 
+  quitarSugerencias();
   agregarBurbuja(texto, "cliente");
   input.value = "";
   botonEnviar.disabled = true;
@@ -99,3 +100,56 @@ input.addEventListener("keydown", (e) => {
 });
 
 agregarAviso("Los mensajes de este chat simulan lo que un cliente escribiría por Instagram Direct");
+
+// --- Bienvenida automática ---
+// Apenas se abre el chat (por ejemplo, al escanear el QR), el agente
+// "escribe" un saludo con sugerencias tocables. El texto sale de
+// data/negocio.json vía /api/bienvenida. Solo se muestra una vez por pestaña.
+function mostrarSugerencias(sugerencias) {
+  if (!sugerencias || !sugerencias.length) return;
+  const caja = document.createElement("div");
+  caja.className = "sugerencias";
+  caja.id = "sugerencias";
+  sugerencias.forEach((texto) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip";
+    chip.textContent = texto;
+    chip.addEventListener("click", () => {
+      input.value = texto;
+      enviarMensaje();
+    });
+    caja.appendChild(chip);
+  });
+  contenedor.appendChild(caja);
+  contenedor.scrollTop = contenedor.scrollHeight;
+}
+
+function quitarSugerencias() {
+  const caja = document.getElementById("sugerencias");
+  if (caja) caja.remove();
+}
+
+async function mostrarBienvenida() {
+  const clave = "bienvenidaVista-" + location.pathname;
+  if (sessionStorage.getItem(clave)) return;
+  sessionStorage.setItem(clave, "1");
+  estadoEl.textContent = "escribiendo...";
+  mostrarEscribiendo();
+  try {
+    const [res] = await Promise.all([
+      fetch("/api/bienvenida"),
+      new Promise((r) => setTimeout(r, 1200)),
+    ]);
+    const data = await res.json();
+    ocultarEscribiendo();
+    agregarBurbuja(data.mensaje, "agente");
+    mostrarSugerencias(data.sugerencias);
+  } catch (err) {
+    ocultarEscribiendo();
+  } finally {
+    estadoEl.textContent = "activo ahora";
+  }
+}
+
+mostrarBienvenida();

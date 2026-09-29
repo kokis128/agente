@@ -4,5 +4,12 @@
   "horario": "Lunes a sábados de 8:00 a 22:00. Domingos de 9:00 a 14:00.",
   "formasDePago": "Efectivo, transferencia y tarjeta de débito/crédito.",
   "envios": "Hacemos envíos gratis a partir de $8000 dentro de un radio de 10 cuadras. El envío tarda entre 15 y 30 minutos.",
-  "telefonoEncargado": "+54 9 11 0000-0000"
+  "telefonoEncargado": "+54 9 11 0000-0000",
+  "bienvenida": "¡Hola! 👋 Bienvenido/a a {nombre}. Soy el asistente virtual: te puedo pasar precios, ver si hay stock, contarte horarios y envíos, o tomarte un pedido. ¿En qué te ayudo?",
+  "sugerencias": [
+    "¿Qué bebidas tienen y a qué precio?",
+    "¿Hasta qué hora están abiertos?",
+    "¿Hacen envíos?",
+    "Quiero pedir 2 Coca-Cola 500ml y un alfajor"
+  ]
 }

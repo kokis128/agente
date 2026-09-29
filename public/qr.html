@@ -21,7 +21,7 @@
     background: #ffffff;
     border-radius: 24px;
     padding: 48px;
-    max-width: 520px;
+    max-width: 760px;
     width: 100%;
     box-shadow: 0 20px 60px rgba(0,0,0,0.35);
     text-align: center;
@@ -29,6 +29,17 @@
   .emoji { font-size: 3rem; margin-bottom: 8px; }
   h1 { margin: 0 0 8px; color: #111; font-size: 1.6rem; }
   p.subtitle { color: #555; margin: 0 0 28px; font-size: 1rem; }
+  .qrs {
+    display: flex;
+    gap: 28px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .qr-item h2 { margin: 0 0 12px; font-size: 1.2rem; }
+  .qr-item.whatsapp h2 { color: #128c7e; }
+  .qr-item.instagram h2 { color: #c13584; }
+  .qr-item.whatsapp .qr-wrap { border-color: #25d366; }
+  .qr-item.instagram .qr-wrap { border-color: #c13584; }
   .qr-wrap {
     background: white;
     border: 10px solid #111827;
@@ -36,7 +47,7 @@
     padding: 16px;
     display: inline-block;
   }
-  img { display: block; width: 260px; height: 260px; }
+  img { display: block; width: 240px; height: 240px; }
   .estado {
     margin-top: 20px;
     font-size: 0.85rem;
@@ -63,24 +74,37 @@
   <div class="card">
     <div class="emoji">📱</div>
     <h1>Escaneá y probá el asistente</h1>
-    <p class="subtitle">Es el agente de IA que atiende el WhatsApp de un kiosco. Escribile lo que quieras — respondé una consulta o hacé un pedido.</p>
-    <div class="qr-wrap">
-      <img id="qr" src="/api/qr-whatsapp" alt="Código QR para probar el asistente" />
+    <p class="subtitle">Es el agente de IA que atiende el WhatsApp y el Instagram de un kiosco. Elegí uno y escribile lo que quieras — respondé una consulta o hacé un pedido.</p>
+    <div class="qrs">
+      <div class="qr-item whatsapp">
+        <h2>WhatsApp</h2>
+        <div class="qr-wrap">
+          <img class="qr" data-canal="whatsapp" src="/api/qr/whatsapp" alt="QR para probar el asistente por WhatsApp" />
+        </div>
+      </div>
+      <div class="qr-item instagram">
+        <h2>Instagram</h2>
+        <div class="qr-wrap">
+          <img class="qr" data-canal="instagram" src="/api/qr/instagram" alt="QR para probar el asistente por Instagram" />
+        </div>
+      </div>
     </div>
     <p class="estado" id="estado"></p>
     <p class="url-actual" id="url-actual"></p>
     <footer>Proyecto de expo — Agente de IA para un negocio</footer>
   </div>
   <script>
-    const img = document.getElementById("qr");
     const estado = document.getElementById("estado");
     const urlActual = document.getElementById("url-actual");
 
-    img.addEventListener("error", () => {
-      estado.textContent = "No se pudo generar el QR, reintentando...";
-      setTimeout(() => { img.src = "/api/qr-whatsapp?t=" + Date.now(); }, 3000);
+    document.querySelectorAll("img.qr").forEach((img) => {
+      const canal = img.dataset.canal;
+      img.addEventListener("error", () => {
+        estado.textContent = "No se pudo generar el QR, reintentando...";
+        setTimeout(() => { img.src = "/api/qr/" + canal + "?t=" + Date.now(); }, 3000);
+      });
+      img.addEventListener("load", () => { estado.textContent = ""; });
     });
-    img.addEventListener("load", () => { estado.textContent = ""; });
 
     // Muestra a qué URL apunta el QR ahora mismo, para detectar a simple
     // vista si quedó apuntando a "localhost" en vez de a la URL de ngrok.

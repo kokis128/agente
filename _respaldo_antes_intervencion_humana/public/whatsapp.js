@@ -1,6 +1,6 @@
-// Simula la app de Instagram: manda el mensaje del "cliente" al agente
-// (POST /api/chat, canal "instagram-simulado") y muestra la respuesta como
-// si fuera un DM real, con indicador de "escribiendo..." animado.
+// Simula la app de WhatsApp: manda el mensaje del "cliente" al agente
+// (POST /api/chat) y muestra la respuesta como si fuera una conversación real,
+// con indicador de "escribiendo..." animado mientras el agente responde.
 
 const contenedor = document.getElementById("mensajes");
 const input = document.getElementById("input");
@@ -9,10 +9,10 @@ const estadoEl = document.getElementById("estado");
 
 // Cada pestaña del navegador simula un cliente distinto.
 function idCliente() {
-  let id = sessionStorage.getItem("clienteIdInstagram");
+  let id = sessionStorage.getItem("clienteId");
   if (!id) {
-    id = "ig-" + Math.random().toString(36).slice(2, 8);
-    sessionStorage.setItem("clienteIdInstagram", id);
+    id = "web-" + Math.random().toString(36).slice(2, 8);
+    sessionStorage.setItem("clienteId", id);
   }
   return id;
 }
@@ -21,16 +21,10 @@ function horaActual() {
   return new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function agregarBurbuja(texto, tipo, escalado = false, autor = "") {
+function agregarBurbuja(texto, tipo, escalado = false) {
   const burbuja = document.createElement("div");
-  burbuja.className = `burbuja ${tipo}` + (escalado ? " escalado" : "") + (autor ? " humano" : "");
-  if (autor) {
-    const quien = document.createElement("div");
-    quien.className = "autor";
-    quien.textContent = autor;
-    burbuja.appendChild(quien);
-  }
-  burbuja.appendChild(document.createTextNode(texto));
+  burbuja.className = `burbuja ${tipo}` + (escalado ? " escalado" : "");
+  burbuja.textContent = texto;
 
   const hora = document.createElement("div");
   hora.className = "hora";
@@ -78,18 +72,13 @@ async function enviarMensaje() {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cliente: idCliente(), mensaje: texto, canal: "instagram-simulado" }),
+      body: JSON.stringify({ cliente: idCliente(), mensaje: texto }),
     });
     const data = await res.json();
 
     ocultarEscribiendo();
-    // Si lo está atendiendo una persona, el agente no contesta (respuesta vacía).
-    if (data.respuesta) {
-      agregarBurbuja(data.respuesta, "agente", data.escalar);
-    }
-    if (data.en_manos_humano) {
-      cambiarModoHumano(true);
-    } else if (data.escalar) {
+    agregarBurbuja(data.respuesta, "agente", data.escalar);
+    if (data.escalar) {
       agregarAviso("🔔 Se avisó a un encargado humano para que revise esta conversación");
     }
     if (data.pedido) {
@@ -99,7 +88,7 @@ async function enviarMensaje() {
     ocultarEscribiendo();
     agregarBurbuja("No se pudo conectar con el agente. ¿Está corriendo el servidor?", "agente", true);
   } finally {
-    estadoEl.textContent = "activo ahora";
+    estadoEl.textContent = "en línea";
     botonEnviar.disabled = false;
     input.focus();
   }
@@ -110,7 +99,7 @@ input.addEventListener("keydown", (e) => {
   if (e.key === "Enter") enviarMensaje();
 });
 
-agregarAviso("Los mensajes de este chat simulan lo que un cliente escribiría por Instagram Direct");
+agregarAviso("Los mensajes de este chat simulan lo que un cliente escribiría por WhatsApp");
 
 // --- Bienvenida automática ---
 // Apenas se abre el chat (por ejemplo, al escanear el QR), el agente
@@ -159,38 +148,8 @@ async function mostrarBienvenida() {
   } catch (err) {
     ocultarEscribiendo();
   } finally {
-    estadoEl.textContent = "activo ahora";
+    estadoEl.textContent = "en línea";
   }
 }
 
 mostrarBienvenida();
-
-// --- Intervención humana ---
-// Cuando el agente pasa la conversación a un encargado (o el encargado la
-// toma desde el panel), lo que escribe el encargado llega acá. El navegador
-// pregunta cada 2,5 segundos si hay mensajes nuevos de una persona.
-let atendidoPorHumano = false;
-
-function cambiarModoHumano(activo) {
-  if (activo === atendidoPorHumano) return;
-  atendidoPorHumano = activo;
-  agregarAviso(
-    activo
-      ? "👤 Te pasamos con un encargado. Te va a responder una persona por este chat."
-      : "🤖 El encargado terminó. Te vuelve a atender el asistente virtual."
-  );
-}
-
-async function buscarNovedades() {
-  try {
-    const res = await fetch(`/api/chat/novedades?cliente=${encodeURIComponent(idCliente())}`);
-    const data = await res.json();
-    if (data.en_manos_humano) cambiarModoHumano(true);
-    (data.mensajes || []).forEach((m) => agregarBurbuja(m.texto, "agente", false, "👤 Encargado"));
-    if (!data.en_manos_humano) cambiarModoHumano(false);
-  } catch {
-    // si el servidor no responde, se reintenta en el próximo ciclo
-  }
-}
-
-setInterval(buscarNovedades, 2500);

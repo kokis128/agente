@@ -51,13 +51,6 @@ from agent import (
     guardar_json,
     responder_mensaje,
     actualizar_estado_pedido_excel,
-    leer_intervenciones,
-    tomar_conversacion,
-    devolver_conversacion,
-    registrar_respuesta_humana,
-    retirar_mensajes_humanos,
-    canal_de_cliente,
-    esta_en_manos_humano,
     LOGS_PATH,
     PEDIDOS_PATH,
     PEDIDOS_XLSX_PATH,
@@ -82,15 +75,6 @@ class MensajeChat(BaseModel):
 
 class EstadoPedido(BaseModel):
     estado: str  # "confirmado" | "rechazado"
-
-
-class AccionConversacion(BaseModel):
-    cliente: str
-
-
-class RespuestaHumana(BaseModel):
-    cliente: str
-    texto: str
 
 
 @app.post("/api/chat")
@@ -134,9 +118,7 @@ async def webhook_meta(payload: dict):
         texto = mensaje.get("text", {}).get("body", "")
 
         resultado = await responder_mensaje(remitente, texto, "whatsapp-real-meta")
-        # Si lo esta atendiendo un humano, el agente no contesta nada.
-        if resultado.respuesta:
-            await enviar_mensaje_whatsapp(remitente, resultado.respuesta)
+        await enviar_mensaje_whatsapp(remitente, resultado.respuesta)
     except Exception as err:  # noqa: BLE001 - no queremos que Meta reciba un 500
         print(f"Error en webhook de Meta: {err}")
 
@@ -157,10 +139,6 @@ async def webhook_whatsapp(From: str = Form(...), Body: str = Form("")):
         respuesta_texto = "Hubo un problema, ya te contactamos."
         print(f"Error en webhook de WhatsApp: {err}")
 
-    if not respuesta_texto:
-        # Lo esta atendiendo un humano: respuesta vacia = Twilio no manda nada.
-        twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
-        return Response(content=twiml, media_type="text/xml")
     twiml = f'<?xml version="1.0" encoding="UTF-8"?><Response><Message>{escape(respuesta_texto)}</Message></Response>'
     return Response(content=twiml, media_type="text/xml")
 
@@ -205,9 +183,7 @@ async def webhook_instagram(payload: dict):
         texto = mensaje["text"]
 
         resultado = await responder_mensaje(remitente, texto, "instagram-real")
-        # Si lo esta atendiendo un humano, el agente no contesta nada.
-        if resultado.respuesta:
-            await enviar_mensaje_instagram(remitente, resultado.respuesta)
+        await enviar_mensaje_instagram(remitente, resultado.respuesta)
     except Exception as err:  # noqa: BLE001 - no queremos que Meta reciba un 500
         print(f"Error en webhook de Instagram: {err}")
 
@@ -245,15 +221,9 @@ def stats():
     pedidos = leer_json(PEDIDOS_PATH, [])
 
     hoy = datetime.now(timezone.utc).date().isoformat()
-    # Solo cuentan los mensajes de clientes: las respuestas del encargado y
-    # los avisos del sistema no son conversaciones nuevas.
-    de_clientes = [l for l in logs if l.get("autor", "agente") in ("agente", "cliente-en-espera")]
-    mensajes_hoy = sum(1 for l in de_clientes if str(l.get("fecha", "")).startswith(hoy))
-    # Para el grafico "resuelto vs. escalado" cuentan solo las respuestas del
-    # agente (los mensajes que llegan mientras atiende un humano no suman).
-    del_agente = [l for l in de_clientes if l.get("autor", "agente") == "agente"]
-    resueltos = sum(1 for l in del_agente if not l.get("escalar"))
-    escalados = sum(1 for l in del_agente if l.get("escalar"))
+    mensajes_hoy = sum(1 for l in logs if str(l.get("fecha", "")).startswith(hoy))
+    resueltos = sum(1 for l in logs if not l.get("escalar"))
+    escalados = sum(1 for l in logs if l.get("escalar"))
     pedidos_pendientes = sum(1 for p in pedidos if p.get("estado") == "pendiente")
     ingresos_confirmados = sum(
         p.get("total", 0) for p in pedidos if p.get("estado") == "confirmado"
@@ -266,7 +236,6 @@ def stats():
         "total_conversaciones": resueltos + escalados,
         "pedidos_pendientes": pedidos_pendientes,
         "ingresos_confirmados": ingresos_confirmados,
-        "en_manos_humano": sum(1 for v in leer_intervenciones().values() if v.get("activa")),
     }
 
 
@@ -362,107 +331,6 @@ def actualizar_estado_pedido(pedido_id: str, payload: EstadoPedido):
     # el pedido en pedidos.json.
     actualizar_estado_pedido_excel(pedido_id, payload.estado)
     return pedido
-
-
-# --- Intervencion humana ----------------------------------------------------
-
-@app.get("/api/intervenciones")
-def intervenciones():
-    """Conversaciones que estan atendiendo humanos, mas las que el agente
-    marco como "requiere humano" y todavia nadie tomo. Las usa el panel."""
-    logs = leer_json(LOGS_PATH, [])
-    estado = leer_intervenciones()
-
-    por_cliente: dict[str, dict] = {}
-    for l in logs:
-        c = l.get("cliente")
-        if not c:
-            continue
-        info = por_cliente.setdefault(c, {"cliente": c, "escalo": False, "motivo": ""})
-        info["canal"] = l.get("canal", "")
-        info["ultima_fecha"] = l.get("fecha")
-        if l.get("autor", "agente") in ("agente", "cliente-en-espera") and l.get("mensaje"):
-            info["ultimo_mensaje"] = l.get("mensaje")
-        if l.get("autor", "agente") == "agente" and l.get("escalar"):
-            info["escalo"] = True
-            info["motivo"] = l.get("motivo", "")
-            info["fecha_escalado"] = l.get("fecha")
-        # Si despues del escalado ya intervino un humano, se devolvio al agente,
-        # o el agente siguio respondiendo bien (ej: Gemini fallo una vez y
-        # despues anduvo), deja de estar "sin atender".
-        if l.get("autor") in ("humano", "sistema"):
-            info["escalo"] = False
-        elif l.get("autor", "agente") == "agente" and not l.get("escalar"):
-            info["escalo"] = False
-
-    resultado = []
-    for c, info in por_cliente.items():
-        e = estado.get(c, {})
-        if e.get("activa"):
-            info["estado"] = "humano"
-            info["motivo"] = e.get("motivo") or info.get("motivo", "")
-        elif info["escalo"]:
-            info["estado"] = "sin-atender"
-        else:
-            continue
-        resultado.append(info)
-
-    resultado.sort(key=lambda i: i.get("ultima_fecha") or "", reverse=True)
-    return resultado
-
-
-@app.get("/api/conversacion")
-def conversacion(cliente: str):
-    """Todos los mensajes de un cliente (para el chat del encargado)."""
-    logs = leer_json(LOGS_PATH, [])
-    return {
-        "cliente": cliente,
-        "canal": canal_de_cliente(cliente),
-        "en_manos_humano": esta_en_manos_humano(cliente),
-        "mensajes": [l for l in logs if l.get("cliente") == cliente],
-    }
-
-
-@app.post("/api/intervenciones/tomar")
-def tomar(payload: AccionConversacion):
-    return tomar_conversacion(payload.cliente)
-
-
-@app.post("/api/intervenciones/devolver")
-def devolver(payload: AccionConversacion):
-    devolver_conversacion(payload.cliente)
-    return {"ok": True}
-
-
-@app.post("/api/intervenciones/responder")
-async def responder_como_humano(payload: RespuestaHumana):
-    """El encargado le escribe al cliente. Si todavia no habia tomado la
-    conversacion, la toma (asi el agente no se le mete en el medio)."""
-    texto = payload.texto.strip()
-    if not texto:
-        raise HTTPException(status_code=400, detail="El mensaje está vacío")
-    if not esta_en_manos_humano(payload.cliente):
-        tomar_conversacion(payload.cliente)
-
-    canal = registrar_respuesta_humana(payload.cliente, texto)
-    if canal == "whatsapp-real-meta":
-        await enviar_mensaje_whatsapp(payload.cliente, texto)
-    elif canal == "instagram-real":
-        await enviar_mensaje_instagram(payload.cliente, texto)
-    elif canal == "whatsapp-real-twilio":
-        # Twilio solo permite contestar dentro del webhook; no hay envio activo.
-        return {"ok": False, "canal": canal, "aviso": "Con Twilio no se puede mandar un mensaje del encargado. Usá Meta."}
-    return {"ok": True, "canal": canal}
-
-
-@app.get("/api/chat/novedades")
-def novedades_chat(cliente: str):
-    """Los chats simulados preguntan cada pocos segundos si el encargado les
-    escribio algo y si la conversacion la esta atendiendo una persona."""
-    return {
-        "mensajes": retirar_mensajes_humanos(cliente),
-        "en_manos_humano": esta_en_manos_humano(cliente),
-    }
 
 
 @app.get("/")

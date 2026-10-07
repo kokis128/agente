@@ -202,6 +202,32 @@ Desde otra cuenta de Instagram (no la del negocio), mandarle un DM a la
 cuenta profesional. El mensaje llega al webhook, el agente lo procesa igual
 que en la demo simulada, y contesta por Instagram Direct de verdad.
 
+## 7. Intervención humana (el encargado toma la conversación)
+
+Cuando el agente no puede resolver algo (el cliente pide hablar con una
+persona, hace un reclamo, pregunta algo fuera del catálogo), **le pasa la
+conversación al encargado y se queda callado** en ese chat:
+
+1. El cliente recibe el aviso "Te pasamos con un encargado".
+2. En el panel del dueño aparece un cartel naranja y la conversación en la
+   sección **🙋 Atención humana**.
+3. El encargado abre la conversación, ve todo lo que se habló y le escribe
+   al cliente. El mensaje le llega por el mismo canal (chat simulado,
+   WhatsApp real o Instagram real) con la etiqueta "👤 Encargado".
+4. Cuando termina, toca **"Devolver al agente 🤖"** y el agente vuelve a
+   contestar, sabiendo lo que dijo el encargado.
+
+El encargado también puede **tomar cualquier conversación** aunque el agente
+no lo haya pedido (botón "Atender" en la tabla de conversaciones).
+
+Los errores técnicos (Gemini caído, falta la API key) se marcan en rojo pero
+**no** pausan al agente, para que la demo no quede muda si nadie mira el
+panel. Si prefieren que el agente nunca se pause solo, cambien
+`PAUSAR_AGENTE_AL_ESCALAR = False` en `agent.py`.
+
+**Para mostrarlo en la expo**: en el WhatsApp simulado escribir "quiero
+hablar con una persona", y desde el panel contestarle como encargado.
+
 ## Solución de problemas
 
 **El agente siempre contesta "Uy, tuve un problema técnico..."**

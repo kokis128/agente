@@ -10,6 +10,16 @@ const vacioLogs = document.getElementById("vacio-logs");
 let ultimoIdPedido = null;
 let ultimaFechaLog = null;
 
+function escaparHtml(texto) {
+  const div = document.createElement("div");
+  div.textContent = texto == null ? "" : String(texto);
+  return div.innerHTML;
+}
+
+function escaparAttr(texto) {
+  return escaparHtml(texto).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+}
+
 function horaLegible(iso) {
   try {
     return new Date(iso).toLocaleString("es-AR");
@@ -79,19 +89,34 @@ async function cargarLogs() {
 
   ordenados.forEach((l) => {
     const tr = document.createElement("tr");
-    if (l.escalar) tr.classList.add("escalado");
+    const autor = l.autor || "agente";
+    if (l.escalar && autor === "agente") tr.classList.add("escalado");
     if (ultimaFechaLog !== null && l.fecha === fechaMasNueva && l.fecha !== ultimaFechaLog) {
       tr.classList.add("fila-nueva");
     }
-    const estado = l.escalar
-      ? `<span class="badge badge-alerta" title="${l.motivo || ''}">Requiere humano</span>`
-      : `<span class="badge badge-ok">Resuelto por el agente</span>`;
+    const botonAtender = `<br><button class="accion tomar" style="margin-top:6px" onclick="abrirConversacion('${escaparAttr(l.cliente)}')">Atender</button>`;
+    let estado;
+    let respuesta = escaparHtml(l.respuesta);
+    if (autor === "humano") {
+      estado = `<span class="badge badge-humano">Respondió un humano</span>`;
+      respuesta = `👤 <strong>Encargado:</strong> ${respuesta}`;
+    } else if (autor === "sistema") {
+      estado = `<span class="badge badge-ok">De vuelta al agente</span>`;
+      respuesta = `<em>${respuesta}</em>`;
+    } else if (autor === "cliente-en-espera") {
+      estado = `<span class="badge badge-sin-atender">Esperando al encargado</span>` + botonAtender;
+      respuesta = `<em style="color:#888">(el agente no contesta: lo atiende una persona)</em>`;
+    } else if (l.escalar) {
+      estado = `<span class="badge badge-alerta" title="${escaparAttr(l.motivo || "")}">Requiere humano</span>` + botonAtender;
+    } else {
+      estado = `<span class="badge badge-ok">Resuelto por el agente</span>`;
+    }
     tr.innerHTML = `
       <td>${horaLegible(l.fecha)}</td>
-      <td class="canal">${l.canal}</td>
-      <td>${l.cliente}</td>
-      <td>${l.mensaje}</td>
-      <td>${l.respuesta}</td>
+      <td class="canal">${escaparHtml(l.canal)}</td>
+      <td>${escaparHtml(l.cliente)}</td>
+      <td>${escaparHtml(l.mensaje) || "—"}</td>
+      <td>${respuesta}</td>
       <td>${estado}</td>
     `;
     cuerpoLogs.appendChild(tr);
@@ -197,7 +222,189 @@ async function cargarEstadoCanal(endpoint, elBanner, elMotivo) {
   }
 }
 
+// --- Atención humana ---
+// Lista de conversaciones que pidieron un humano + chat para responderles.
+
+const elListaHumano = document.getElementById("humano-lista");
+const elListaVacia = document.getElementById("humano-lista-vacio");
+const elChatVacio = document.getElementById("humano-chat-vacio");
+const elChatContenido = document.getElementById("humano-chat-contenido");
+const elChatCliente = document.getElementById("chat-cliente");
+const elChatCanal = document.getElementById("chat-canal");
+const elChatEstado = document.getElementById("chat-estado");
+const elChatHilo = document.getElementById("chat-hilo");
+const elChatAviso = document.getElementById("chat-aviso");
+const elChatTexto = document.getElementById("chat-texto");
+const elBtnTomar = document.getElementById("btn-tomar");
+const elBtnDevolver = document.getElementById("btn-devolver");
+const elBtnEnviar = document.getElementById("btn-enviar");
+const elBannerHumano = document.getElementById("banner-humano");
+const elBannerHumanoTexto = document.getElementById("banner-humano-texto");
+
+let clienteAbierto = null;
+let cantidadMensajesHilo = -1;
+
+function nombreCanal(canal) {
+  return {
+    "whatsapp-simulado": "WhatsApp (simulado)",
+    "instagram-simulado": "Instagram (simulado)",
+    "whatsapp-real-meta": "WhatsApp real",
+    "instagram-real": "Instagram real",
+    "whatsapp-real-twilio": "WhatsApp (Twilio)",
+  }[canal] || canal || "";
+}
+
+async function postJSON(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+async function cargarIntervenciones() {
+  const res = await fetch("/api/intervenciones");
+  const lista = await res.json();
+
+  elListaHumano.querySelectorAll(".conv-item").forEach((n) => n.remove());
+  elListaVacia.hidden = lista.length > 0;
+
+  lista.forEach((c) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "conv-item" + (c.cliente === clienteAbierto ? " activa" : "");
+    const badge = c.estado === "humano"
+      ? `<span class="badge badge-humano">Atendiendo</span>`
+      : `<span class="badge badge-sin-atender">Sin atender</span>`;
+    item.innerHTML = `
+      <div class="fila1"><span class="cli">${escaparHtml(c.cliente)}</span>${badge}</div>
+      <div class="canal">${escaparHtml(nombreCanal(c.canal))}</div>
+      <div class="ultimo">${escaparHtml(c.ultimo_mensaje || "")}</div>
+      <div class="motivo">${escaparHtml(c.motivo || "")}</div>
+    `;
+    item.addEventListener("click", () => abrirConversacion(c.cliente));
+    elListaHumano.appendChild(item);
+  });
+
+  const sinAtender = lista.filter((c) => c.estado === "sin-atender").length;
+  const atendiendo = lista.filter((c) => c.estado === "humano").length;
+  if (sinAtender + atendiendo > 0) {
+    elBannerHumano.style.display = "flex";
+    elBannerHumanoTexto.textContent =
+      sinAtender > 0
+        ? `${sinAtender} conversación${sinAtender > 1 ? "es" : ""} pide${sinAtender > 1 ? "n" : ""} un humano.`
+        : `Estás atendiendo ${atendiendo} conversación${atendiendo > 1 ? "es" : ""} (el agente está en pausa ahí).`;
+  } else {
+    elBannerHumano.style.display = "none";
+  }
+}
+
+function renderHilo(mensajes) {
+  const estabaAbajo = elChatHilo.scrollHeight - elChatHilo.scrollTop - elChatHilo.clientHeight < 40;
+  elChatHilo.innerHTML = "";
+  mensajes.forEach((m) => {
+    const autor = m.autor || "agente";
+    if (m.mensaje) {
+      const d = document.createElement("div");
+      d.className = "msg cliente";
+      d.innerHTML = `<div class="de">🧑 Cliente · ${horaLegible(m.fecha)}</div>`;
+      d.appendChild(document.createTextNode(m.mensaje));
+      elChatHilo.appendChild(d);
+    }
+    if (!m.respuesta) return;
+    const r = document.createElement("div");
+    if (autor === "humano") {
+      r.className = "msg humano";
+      r.innerHTML = `<div class="de">👤 Encargado</div>`;
+    } else if (autor === "sistema") {
+      r.className = "msg sistema";
+    } else {
+      r.className = "msg agente" + (m.escalar ? " escalado" : "");
+      r.innerHTML = `<div class="de">🤖 Agente${m.escalar ? " · pidió ayuda: " + escaparHtml(m.motivo || "") : ""}</div>`;
+    }
+    r.appendChild(document.createTextNode(m.respuesta));
+    elChatHilo.appendChild(r);
+  });
+  if (estabaAbajo || cantidadMensajesHilo === -1) elChatHilo.scrollTop = elChatHilo.scrollHeight;
+}
+
+async function cargarConversacionAbierta() {
+  if (!clienteAbierto) return;
+  const res = await fetch(`/api/conversacion?cliente=${encodeURIComponent(clienteAbierto)}`);
+  const data = await res.json();
+
+  elChatCliente.textContent = data.cliente;
+  elChatCanal.textContent = nombreCanal(data.canal);
+  elChatEstado.className = "badge " + (data.en_manos_humano ? "badge-humano" : "badge-ok");
+  elChatEstado.textContent = data.en_manos_humano ? "La atendés vos · agente en pausa" : "La atiende el agente";
+  elBtnTomar.hidden = data.en_manos_humano;
+  elBtnDevolver.hidden = !data.en_manos_humano;
+
+  if (data.canal === "whatsapp-real-twilio") {
+    elChatAviso.hidden = false;
+    elChatAviso.textContent = "Con Twilio no se pueden mandar mensajes del encargado. Para responder como humano usen WhatsApp con Meta.";
+  } else {
+    elChatAviso.hidden = true;
+  }
+
+  if (data.mensajes.length !== cantidadMensajesHilo) {
+    renderHilo(data.mensajes);
+    cantidadMensajesHilo = data.mensajes.length;
+  }
+}
+
+function abrirConversacion(cliente) {
+  clienteAbierto = cliente;
+  cantidadMensajesHilo = -1;
+  elChatVacio.style.display = "none";
+  elChatContenido.style.display = "flex";
+  document.getElementById("seccion-humano").scrollIntoView({ behavior: "smooth" });
+  cargarConversacionAbierta();
+  cargarIntervenciones();
+  elChatTexto.focus();
+}
+
+elBtnTomar.addEventListener("click", async () => {
+  await postJSON("/api/intervenciones/tomar", { cliente: clienteAbierto });
+  cargarConversacionAbierta();
+  cargarIntervenciones();
+});
+
+elBtnDevolver.addEventListener("click", async () => {
+  await postJSON("/api/intervenciones/devolver", { cliente: clienteAbierto });
+  cargarConversacionAbierta();
+  cargarIntervenciones();
+});
+
+async function enviarRespuestaHumana(e) {
+  if (e) e.preventDefault();
+  const texto = elChatTexto.value.trim();
+  if (!texto || !clienteAbierto) return;
+  elBtnEnviar.disabled = true;
+  try {
+    const r = await postJSON("/api/intervenciones/responder", { cliente: clienteAbierto, texto });
+    if (r.ok === false && r.aviso) {
+      elChatAviso.hidden = false;
+      elChatAviso.textContent = r.aviso;
+    }
+    elChatTexto.value = "";
+  } finally {
+    elBtnEnviar.disabled = false;
+    elChatTexto.focus();
+  }
+  cargarConversacionAbierta();
+  cargarIntervenciones();
+}
+
+document.getElementById("form-responder").addEventListener("submit", enviarRespuestaHumana);
+elChatTexto.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) enviarRespuestaHumana(e);
+});
+
 function actualizarTodo() {
+  cargarIntervenciones();
+  cargarConversacionAbierta();
   cargarPedidos();
   cargarLogs();
   cargarStats();

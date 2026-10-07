@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>WhatsApp - Kiosco 24</title>
+<title>Instagram - Kiosco 24</title>
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
   body {
     margin: 0;
     font-family: 'Segoe UI', system-ui, sans-serif;
-    background: #e5ddd5;
+    background: #fafafa;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -22,7 +22,7 @@
     max-width: 100%;
     height: 780px;
     max-height: 92vh;
-    background: #e5ddd5;
+    background: #ffffff;
     border-radius: 28px;
     box-shadow: 0 25px 60px rgba(0,0,0,0.35);
     overflow: hidden;
@@ -31,21 +31,29 @@
     border: 8px solid #111;
   }
   .header {
-    background: #075E54;
-    color: white;
+    background: #ffffff;
+    color: #111;
     padding: 14px 16px;
     display: flex;
     align-items: center;
     gap: 12px;
+    border-bottom: 1px solid #eee;
   }
   .avatar {
     width: 40px; height: 40px; border-radius: 50%;
-    background: #25D366;
+    background: linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7);
     display: flex; align-items: center; justify-content: center;
     font-size: 1.2rem;
+    padding: 2px;
+  }
+  .avatar span {
+    background: white;
+    border-radius: 50%;
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
   }
   .header .nombre { font-weight: 600; }
-  .header .estado { font-size: 0.75rem; opacity: 0.85; }
+  .header .estado { font-size: 0.75rem; color: #8e8e8e; }
   .mensajes {
     flex: 1;
     padding: 16px;
@@ -53,16 +61,14 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    background-image: radial-gradient(rgba(255,255,255,0.4) 1px, transparent 1px);
-    background-size: 18px 18px;
+    background: #ffffff;
   }
   .burbuja {
     max-width: 78%;
-    padding: 9px 12px;
-    border-radius: 10px;
+    padding: 10px 14px;
+    border-radius: 20px;
     font-size: 0.92rem;
     line-height: 1.35;
-    box-shadow: 0 1px 1px rgba(0,0,0,0.1);
     white-space: pre-wrap;
     animation: burbujaAparece 0.25s ease;
   }
@@ -70,28 +76,28 @@
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
   }
-  .cliente { align-self: flex-end; background: #DCF8C6; border-top-right-radius: 2px; }
-  .agente { align-self: flex-start; background: #ffffff; border-top-left-radius: 2px; }
-  .agente.escalado { border-left: 3px solid #e74c3c; }
-  .agente.humano { background: #e8f0fe; border-left: 3px solid #1a73e8; }
-  .autor { font-size: 0.72rem; font-weight: 700; color: #1a73e8; margin-bottom: 2px; }
+  .cliente {
+    align-self: flex-end;
+    background: linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7);
+    color: white;
+  }
+  .agente { align-self: flex-start; background: #efefef; color: #111; }
+  .agente.escalado { border-left: 3px solid #ee2a7b; }
   .aviso {
     align-self: center;
-    background: #fff3cd;
-    color: #7a5b00;
+    background: #fff0f6;
+    color: #a3195b;
     font-size: 0.75rem;
     padding: 4px 10px;
     border-radius: 8px;
     animation: burbujaAparece 0.25s ease;
   }
-  .hora { font-size: 0.65rem; color: #667781; margin-top: 4px; text-align: right; }
+  .hora { font-size: 0.65rem; color: #8e8e8e; margin-top: 4px; text-align: right; }
   .escribiendo {
     align-self: flex-start;
-    background: #ffffff;
-    border-top-left-radius: 2px;
+    background: #efefef;
     padding: 10px 14px;
-    border-radius: 10px;
-    box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+    border-radius: 20px;
     display: flex;
     gap: 4px;
     align-items: center;
@@ -101,7 +107,7 @@
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #9aa0a6;
+    background: #8e8e8e;
     animation: rebotePunto 1.2s infinite ease-in-out;
   }
   .escribiendo .punto:nth-child(2) { animation-delay: 0.15s; }
@@ -114,11 +120,12 @@
     display: flex;
     padding: 10px;
     gap: 8px;
-    background: #f0f0f0;
+    background: #ffffff;
+    border-top: 1px solid #eee;
   }
   .barra input {
     flex: 1;
-    border: none;
+    border: 1px solid #dbdbdb;
     border-radius: 20px;
     padding: 12px 16px;
     font-size: 0.9rem;
@@ -126,7 +133,7 @@
   }
   .barra button {
     border: none;
-    background: #075E54;
+    background: linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7);
     color: white;
     width: 44px;
     border-radius: 50%;
@@ -142,7 +149,7 @@
     border-radius: 10px;
     padding: 8px 14px;
     text-decoration: none;
-    color: #075E54;
+    color: #ee2a7b;
     font-weight: 600;
     box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   }
@@ -154,9 +161,9 @@
     max-width: 90%;
   }
   .chip {
-    border: 1px solid #25D366;
+    border: 1px solid #dbdbdb;
     background: #ffffff;
-    color: #075E54;
+    color: #6228d7;
     border-radius: 18px;
     padding: 8px 14px;
     font-size: 0.9rem;
@@ -164,25 +171,25 @@
     cursor: pointer;
     text-align: left;
   }
-  .chip:hover { background: #e7fbe9; }
+  .chip:hover { background: #f5f0ff; }
 </style>
 </head>
 <body>
   <a class="volver" href="/">← Volver</a>
   <div class="telefono">
     <div class="header">
-      <div class="avatar">🏪</div>
+      <div class="avatar"><span>🏪</span></div>
       <div>
-        <div class="nombre">Kiosco 24</div>
-        <div class="estado" id="estado">en línea</div>
+        <div class="nombre">kiosco24 · Instagram</div>
+        <div class="estado" id="estado">activo ahora</div>
       </div>
     </div>
     <div class="mensajes" id="mensajes"></div>
     <div class="barra">
-      <input id="input" type="text" placeholder="Escribí un mensaje..." autocomplete="off" />
+      <input id="input" type="text" placeholder="Mensaje..." autocomplete="off" />
       <button id="enviar">➤</button>
     </div>
   </div>
-  <script src="whatsapp.js"></script>
+  <script src="instagram.js"></script>
 </body>
 </html>

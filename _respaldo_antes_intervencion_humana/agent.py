@@ -29,41 +29,16 @@ PEDIDOS_PATH = DATA_DIR / "pedidos.json"
 PEDIDOS_XLSX_PATH = DATA_DIR / "pedidos.xlsx"
 WHATSAPP_STATUS_PATH = DATA_DIR / "whatsapp_status.json"
 INSTAGRAM_STATUS_PATH = DATA_DIR / "instagram_status.json"
-# Conversaciones que tomo un encargado humano (el agente no contesta en esas).
-INTERVENCIONES_PATH = DATA_DIR / "intervenciones.json"
-
-# Si es True, cuando el agente decide escalar (el cliente pide una persona,
-# hace un reclamo, etc.) la conversacion pasa sola a manos del encargado y el
-# agente deja de contestar hasta que alguien la devuelva desde el panel.
-# Los errores tecnicos (Gemini caido, falta la API key) NO pausan al agente:
-# solo se marcan en rojo, para que la demo no se quede muda si nadie mira.
-PAUSAR_AGENTE_AL_ESCALAR = True
 
 DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
-
-# Modelos de respaldo: si el modelo principal esta saturado (503 "high
-# demand") o se quedo sin cupo (429), se prueba con estos en orden antes de
-# avisarle al cliente que hubo un problema. Se pueden cambiar en .env con
-# GEMINI_MODELOS_RESPALDO=modelo1,modelo2
-DEFAULT_MODELOS_RESPALDO = "gemini-3.5-flash-lite,gemini-3.5-flash"
 
 # Gemini (sobre todo en el tier gratis) devuelve 503 "alta demanda" o un
 # 429 de limite de uso de vez en cuando -- son errores transitorios que la
 # propia Google recomienda reintentar ("please try again later"), asi que
 # antes de rendirse y avisarle al cliente que hubo un problema, reintentamos
 # unas pocas veces con una espera corta entre intentos.
-# Como hay modelos de respaldo, no conviene insistir mucho con un modelo
-# saturado: 2 intentos y se pasa al siguiente (asi el cliente no espera tanto).
-MAX_INTENTOS_GEMINI = 2
-ESPERA_BASE_REINTENTO_SEGUNDOS = 1.0
-# Maximo de segundos esperando a Gemini en cada intento.
-TIMEOUT_GEMINI_SEGUNDOS = 20
-
-# Los modelos Gemini 3 "piensan" antes de contestar, y eso agrega segundos.
-# Para atender un kiosco no hace falta razonar mucho: "minimal" es lo mas
-# rapido. Se puede cambiar en .env con GEMINI_NIVEL_RAZONAMIENTO
-# (minimal, low, medium, high).
-DEFAULT_NIVEL_RAZONAMIENTO = "minimal"
+MAX_INTENTOS_GEMINI = 3
+ESPERA_BASE_REINTENTO_SEGUNDOS = 1.5
 CODIGOS_TRANSITORIOS_GEMINI = {429, 500, 503}
 
 # Historial de conversacion por cliente (en memoria; alcanza para la demo).
@@ -76,15 +51,6 @@ historiales: dict[str, list[dict]] = {}
 # repite el resumen del pedido en su respuesta JSON).
 # clave: cliente -> {"items": tupla normalizada, "total": float, "ts": epoch}
 ultimos_pedidos_registrados: dict[str, dict] = {}
-
-# Ultimo canal por el que escribio cada cliente, para saber por donde
-# mandarle la respuesta del encargado humano (WhatsApp real, Instagram real
-# o los chats simulados del navegador).
-ultimo_canal: dict[str, str] = {}
-
-# Mensajes del encargado que todavia no vio un cliente de los chats
-# simulados (el navegador los viene a buscar cada pocos segundos).
-bandeja_simulados: dict[str, list[dict]] = {}
 VENTANA_DEDUPE_PEDIDO_SEGUNDOS = 1800  # 30 minutos
 
 
@@ -103,9 +69,6 @@ class ResultadoAgente(BaseModel):
     escalar: bool = False
     motivo: str = ""
     pedido: Optional[Pedido] = None
-    # True cuando la conversacion la esta atendiendo un humano: el agente no
-    # contesto nada y "respuesta" viene vacia.
-    en_manos_humano: bool = False
 
 
 def leer_json(path: Path, valor_por_defecto):
@@ -157,10 +120,6 @@ REGLAS IMPORTANTES:
      especiales, algo fuera del catálogo).
    - El cliente parece enojado, urgente, o insiste en hablar con una persona.
    - No estás seguro de la respuesta.
-   Cuando escales, en "respuesta" avisale al cliente que lo pasás con un encargado y que le va a
-   escribir por este mismo chat en un ratito (no le hagas más preguntas en ese mensaje).
-5. Si en el historial ves mensajes que empiezan con "[Encargado]", los escribió una persona del
-   kiosco. Respetá lo que haya dicho o acordado el encargado y seguí desde ahí.
 4. Nunca confirmes definitivamente un pedido como "entregado" ni proceses pagos: solo tomá el pedido,
    avisá que un encargado lo va a confirmar, y marcá "pedido" con el detalle.
 
@@ -202,19 +161,6 @@ async def _post_gemini_con_reintentos(client: httpx.AsyncClient, url: str, body:
     return ultima_respuesta
 
 
-def _historial_para_gemini(historial: list[dict]) -> list[dict]:
-    """Convierte el historial al formato de Gemini, juntando mensajes
-    seguidos del mismo rol (pasa cuando el cliente escribio varias veces
-    mientras lo atendia un humano) para que los turnos queden alternados."""
-    contents: list[dict] = []
-    for m in historial:
-        if contents and contents[-1]["role"] == m["role"]:
-            contents[-1]["parts"][0]["text"] += "\n" + m["texto"]
-        else:
-            contents.append({"role": m["role"], "parts": [{"text": m["texto"]}]})
-    return contents
-
-
 async def llamar_gemini(system_prompt: str, historial: list[dict]) -> ResultadoAgente:
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -227,58 +173,32 @@ async def llamar_gemini(system_prompt: str, historial: list[dict]) -> ResultadoA
             motivo="Falta configurar la API key de Gemini",
         )
 
-    principal = os.getenv("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL
-    respaldo = os.getenv("GEMINI_MODELOS_RESPALDO", DEFAULT_MODELOS_RESPALDO)
-    modelos = [principal] + [m.strip() for m in respaldo.split(",") if m.strip() and m.strip() != principal]
+    model = os.getenv("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{model}:generateContent?key={api_key}"
+    )
 
     body = {
         "systemInstruction": {"parts": [{"text": system_prompt}]},
-        "contents": _historial_para_gemini(historial),
+        "contents": [
+            {"role": m["role"], "parts": [{"text": m["texto"]}]} for m in historial
+        ],
         "generationConfig": {
             "temperature": 0.4,
             "responseMimeType": "application/json",
-            "thinkingConfig": {
-                "thinkingLevel": os.getenv("GEMINI_NIVEL_RAZONAMIENTO") or DEFAULT_NIVEL_RAZONAMIENTO
-            },
         },
     }
 
-    res = None
-    inicio = time.time()
-    async with httpx.AsyncClient(timeout=TIMEOUT_GEMINI_SEGUNDOS) as client:
-        for i, model in enumerate(modelos):
-            url = (
-                f"https://generativelanguage.googleapis.com/v1beta/models/"
-                f"{model}:generateContent?key={api_key}"
-            )
-            try:
-                res = await _post_gemini_con_reintentos(client, url, body)
-            except (httpx.TimeoutException, httpx.TransportError):
-                if i == len(modelos) - 1:
-                    raise
-                print(f"[agent] {model} no respondio (red/timeout), probando con {modelos[i + 1]}...")
-                continue
-            if res.status_code == 400 and "thinking" in res.text.lower() and "thinkingConfig" in body["generationConfig"]:
-                # Este modelo no acepta el nivel de razonamiento: se reintenta sin ese ajuste.
-                print(f"[agent] {model} no acepta thinkingConfig, reintentando sin ese ajuste...")
-                del body["generationConfig"]["thinkingConfig"]
-                res = await _post_gemini_con_reintentos(client, url, body)
-            if res.status_code == 200:
-                print(f"[agent] Respondio {model} en {time.time() - inicio:.1f} s")
-                break
-            # 401/400 = problema de la API key o del pedido: cambiar de modelo no ayuda.
-            if res.status_code in (400, 401) or i == len(modelos) - 1:
-                break
-            print(f"[agent] {model} respondio {res.status_code}, probando con {modelos[i + 1]}...")
+    async with httpx.AsyncClient(timeout=45) as client:
+        res = await _post_gemini_con_reintentos(client, url, body)
 
     if res.status_code != 200:
         raise RuntimeError(f"Gemini respondió {res.status_code}: {res.text}")
 
     data = res.json()
     try:
-        # Se ignoran las partes de "pensamiento" (thought) y se junta el texto.
-        partes = data["candidates"][0]["content"]["parts"]
-        texto = "".join(p.get("text", "") for p in partes if not p.get("thought"))
+        texto = data["candidates"][0]["content"]["parts"][0]["text"]
     except (KeyError, IndexError):
         texto = ""
 
@@ -394,143 +314,19 @@ def registrar_pedido(cliente: str, pedido: Pedido):
     registrar_pedido_excel(pedido_id, cliente, pedido, fecha_iso)
 
 
-# --- Intervencion humana -------------------------------------------------
-
-def _ahora_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def leer_intervenciones() -> dict:
-    """{cliente: {"activa": bool, "motivo": str, "desde": iso, "canal": str}}"""
-    return leer_json(INTERVENCIONES_PATH, {})
-
-
-def esta_en_manos_humano(cliente: str) -> bool:
-    return bool(leer_intervenciones().get(cliente, {}).get("activa"))
-
-
-def tomar_conversacion(cliente: str, motivo: str = "") -> dict:
-    """El encargado se hace cargo: el agente deja de contestarle a este cliente."""
-    intervenciones = leer_intervenciones()
-    estado = {
-        "activa": True,
-        "motivo": motivo or "El encargado tomó la conversación desde el panel",
-        "desde": _ahora_iso(),
-        "canal": ultimo_canal.get(cliente) or intervenciones.get(cliente, {}).get("canal", ""),
-    }
-    intervenciones[cliente] = estado
-    guardar_json(INTERVENCIONES_PATH, intervenciones)
-    return estado
-
-
-def devolver_conversacion(cliente: str) -> None:
-    """El encargado termina: el agente vuelve a contestar a este cliente."""
-    intervenciones = leer_intervenciones()
-    if cliente in intervenciones:
-        intervenciones[cliente]["activa"] = False
-        intervenciones[cliente]["hasta"] = _ahora_iso()
-        guardar_json(INTERVENCIONES_PATH, intervenciones)
-    registrar_log(
-        {
-            "fecha": _ahora_iso(),
-            "canal": canal_de_cliente(cliente),
-            "cliente": cliente,
-            "autor": "sistema",
-            "mensaje": "",
-            "respuesta": "El encargado devolvió la conversación al agente",
-            "escalar": False,
-            "motivo": "",
-        }
-    )
-
-
-def canal_de_cliente(cliente: str) -> str:
-    """Por que canal escribio este cliente la ultima vez. Si el servidor se
-    reinicio y no esta en memoria, lo busca en los logs."""
-    if cliente in ultimo_canal:
-        return ultimo_canal[cliente]
-    canal = leer_intervenciones().get(cliente, {}).get("canal")
-    if not canal:
-        for entrada in reversed(leer_json(LOGS_PATH, [])):
-            if entrada.get("cliente") == cliente:
-                canal = entrada.get("canal")
-                break
-    return canal or "desconocido"
-
-
-def registrar_respuesta_humana(cliente: str, texto: str) -> str:
-    """Guarda lo que escribio el encargado (log + historial del agente, para
-    que cuando la conversacion vuelva al agente sepa lo que se hablo) y, si
-    el cliente esta en un chat simulado, lo deja en su bandeja. Devuelve el
-    canal del cliente para que main.py lo mande por WhatsApp/Instagram real
-    cuando corresponda."""
-    canal = canal_de_cliente(cliente)
-    historial = historiales.setdefault(cliente, [])
-    historial.append({"role": "model", "texto": f"[Encargado] {texto}"})
-
-    if not canal.startswith(("whatsapp-real", "instagram-real")):
-        bandeja_simulados.setdefault(cliente, []).append({"texto": texto, "fecha": _ahora_iso()})
-
-    registrar_log(
-        {
-            "fecha": _ahora_iso(),
-            "canal": canal,
-            "cliente": cliente,
-            "autor": "humano",
-            "mensaje": "",
-            "respuesta": texto,
-            "escalar": False,
-            "motivo": "",
-        }
-    )
-    return canal
-
-
-def retirar_mensajes_humanos(cliente: str) -> list[dict]:
-    """Los chats simulados llaman a esto cada pocos segundos para ver si el
-    encargado les escribio algo. Devuelve y vacia la bandeja del cliente."""
-    return bandeja_simulados.pop(cliente, [])
-
-
 async def responder_mensaje(cliente: str, mensaje: str, canal: str) -> ResultadoAgente:
-    """Punto de entrada del agente. Se usa desde los chats simulados y desde
-    los webhooks reales de WhatsApp e Instagram."""
+    """Punto de entrada del agente. Se usa tanto desde el WhatsApp simulado
+    como desde el webhook real de Twilio."""
 
-    ultimo_canal[cliente] = canal
     historial = historiales.setdefault(cliente, [])
     historial.append({"role": "user", "texto": mensaje})
 
-    # Si un encargado esta atendiendo esta conversacion, el agente NO
-    # contesta: solo registra el mensaje para que el encargado lo vea.
-    if esta_en_manos_humano(cliente):
-        registrar_log(
-            {
-                "fecha": _ahora_iso(),
-                "canal": canal,
-                "cliente": cliente,
-                "autor": "cliente-en-espera",
-                "mensaje": mensaje,
-                "respuesta": "",
-                "escalar": True,
-                "motivo": "Conversación en manos de un encargado",
-            }
-        )
-        return ResultadoAgente(
-            respuesta="",
-            escalar=True,
-            motivo="Conversación en manos de un encargado",
-            en_manos_humano=True,
-        )
-
     system_prompt = construir_system_prompt()
-    error_tecnico = False
 
     try:
         resultado = await llamar_gemini(system_prompt, historial)
-        error_tecnico = resultado.motivo.startswith("Falta configurar")
     except Exception as err:  # noqa: BLE001 - queremos degradar con gracia en la demo
         print(f"[agent] Error llamando a Gemini: {err}")
-        error_tecnico = True
         resultado = ResultadoAgente(
             respuesta="Uy, tuve un problema técnico. Ya le aviso a un encargado para que te responda.",
             escalar=True,
@@ -558,21 +354,14 @@ async def responder_mensaje(cliente: str, mensaje: str, canal: str) -> Resultado
 
     registrar_log(
         {
-            "fecha": _ahora_iso(),
+            "fecha": datetime.now(timezone.utc).isoformat(),
             "canal": canal,
             "cliente": cliente,
-            "autor": "agente",
             "mensaje": mensaje,
             "respuesta": resultado.respuesta,
             "escalar": resultado.escalar,
             "motivo": resultado.motivo,
         }
     )
-
-    # El agente decidio que esto lo tiene que ver una persona: le pasa la
-    # conversacion al encargado y se queda callado hasta que se la devuelvan.
-    if resultado.escalar and PAUSAR_AGENTE_AL_ESCALAR and not error_tecnico:
-        tomar_conversacion(cliente, motivo=resultado.motivo or "El agente pidió ayuda humana")
-        resultado.en_manos_humano = True
 
     return resultado

@@ -188,101 +188,6 @@
   button.confirmar { background: #16a34a; color: white; }
   button.rechazar { background: #dc2626; color: white; }
   .canal { font-size: 0.75rem; color: #6b7280; }
-
-  /* --- Atención humana --- */
-  #banner-humano {
-    display: none;
-    align-items: center;
-    gap: 12px;
-    background: #fff7ed;
-    border-left: 4px solid #ea580c;
-    color: #9a3412;
-    padding: 12px 18px;
-    border-radius: 8px;
-    margin-bottom: 24px;
-    font-size: 0.92rem;
-    cursor: pointer;
-    animation: latido 1.6s ease-in-out infinite;
-  }
-  @keyframes latido { 50% { box-shadow: 0 0 0 6px rgba(234,88,12,0.12); } }
-  .humano-grid {
-    display: grid;
-    grid-template-columns: minmax(220px, 300px) 1fr;
-    gap: 16px;
-  }
-  @media (max-width: 760px) { .humano-grid { grid-template-columns: 1fr; } }
-  .humano-lista, .humano-chat {
-    background: var(--surface);
-    border-radius: 12px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-    min-height: 120px;
-  }
-  .humano-lista { padding: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 460px; overflow-y: auto; }
-  .conv-item {
-    border: 1px solid #eee;
-    border-radius: 10px;
-    padding: 10px 12px;
-    cursor: pointer;
-    background: white;
-    text-align: left;
-    font: inherit;
-    width: 100%;
-  }
-  .conv-item:hover { background: #f9fafb; }
-  .conv-item.activa { border-color: #2563eb; background: #eff6ff; }
-  .conv-item .fila1 { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-  .conv-item .cli { font-weight: 600; font-size: 0.86rem; overflow: hidden; text-overflow: ellipsis; }
-  .conv-item .ultimo { font-size: 0.8rem; color: var(--ink-secondary); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .conv-item .motivo { font-size: 0.74rem; color: var(--ink-muted); margin-top: 2px; }
-  .badge-sin-atender { background: #ffedd5; color: #9a3412; }
-  .badge-humano { background: #dbeafe; color: #1e40af; }
-  .humano-chat { display: flex; flex-direction: column; }
-  .humano-chat .cabecera {
-    padding: 12px 16px;
-    border-bottom: 1px solid #eee;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-  .humano-chat .cabecera .quien { font-weight: 600; }
-  .humano-chat .cabecera .canal { display: block; }
-  .hilo {
-    flex: 1;
-    padding: 14px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 340px;
-    min-height: 200px;
-    overflow-y: auto;
-    background: #f9fafb;
-  }
-  .msg { max-width: 80%; padding: 8px 11px; border-radius: 10px; font-size: 0.86rem; line-height: 1.35; white-space: pre-wrap; }
-  .msg .de { font-size: 0.7rem; font-weight: 700; margin-bottom: 2px; opacity: 0.75; }
-  .msg.cliente { align-self: flex-start; background: white; border: 1px solid #e5e7eb; }
-  .msg.agente { align-self: flex-end; background: #ecfdf5; }
-  .msg.humano { align-self: flex-end; background: #dbeafe; }
-  .msg.sistema { align-self: center; background: transparent; color: var(--ink-muted); font-size: 0.75rem; font-style: italic; }
-  .msg.escalado { border-left: 3px solid var(--critical); }
-  .redactar { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid #eee; }
-  .redactar textarea {
-    flex: 1;
-    resize: none;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    padding: 8px 10px;
-    font: inherit;
-    font-size: 0.88rem;
-    min-height: 42px;
-  }
-  button.tomar { background: #2563eb; color: white; }
-  button.devolver { background: #374151; color: white; }
-  button.enviar { background: #16a34a; color: white; padding: 8px 16px; font-size: 0.86rem; }
-  button.accion:disabled { opacity: 0.5; cursor: default; }
-  .chat-vacio { padding: 40px 20px; text-align: center; color: #888; font-style: italic; }
-  .aviso-envio { padding: 0 16px 10px; font-size: 0.78rem; color: var(--critical-ink); }
 </style>
 </head>
 <body>
@@ -309,11 +214,6 @@
       </div>
     </div>
 
-    <div id="banner-humano" onclick="document.getElementById('seccion-humano').scrollIntoView({behavior:'smooth'})">
-      <span style="font-size:1.3rem">🔔</span>
-      <div><strong id="banner-humano-texto"></strong> Tocá acá para atender.</div>
-    </div>
-
     <section>
       <h2>Resumen de hoy</h2>
       <div class="kpis">
@@ -332,37 +232,6 @@
         <div class="kpi-tile">
           <div class="kpi-label">Ingresos confirmados</div>
           <div class="kpi-value"><span class="unidad">$</span><span id="kpi-ingresos">0</span></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="seccion-humano">
-      <h2>🙋 Atención humana</h2>
-      <div class="humano-grid">
-        <div class="humano-lista" id="humano-lista">
-          <div class="vacio" id="humano-lista-vacio">Ninguna conversación necesita un humano por ahora. Cuando el agente pida ayuda, aparece acá.</div>
-        </div>
-        <div class="humano-chat" id="humano-chat">
-          <div class="chat-vacio" id="humano-chat-vacio">Elegí una conversación de la izquierda para ver el chat y responderle al cliente.</div>
-          <div id="humano-chat-contenido" style="display:none; flex-direction:column; flex:1;">
-            <div class="cabecera">
-              <div>
-                <span class="quien" id="chat-cliente"></span>
-                <span class="canal" id="chat-canal"></span>
-              </div>
-              <div>
-                <span class="badge" id="chat-estado"></span>
-                <button class="accion tomar" id="btn-tomar">Tomar conversación</button>
-                <button class="accion devolver" id="btn-devolver">Devolver al agente 🤖</button>
-              </div>
-            </div>
-            <div class="hilo" id="chat-hilo"></div>
-            <div class="aviso-envio" id="chat-aviso" hidden></div>
-            <form class="redactar" id="form-responder">
-              <textarea id="chat-texto" placeholder="Escribile al cliente como encargado… (Enter para enviar)"></textarea>
-              <button class="accion enviar" type="submit" id="btn-enviar">Enviar</button>
-            </form>
-          </div>
         </div>
       </div>
     </section>
@@ -411,7 +280,7 @@
       <div class="tabla-wrap">
         <table id="tabla-logs">
           <thead>
-            <tr><th>Hora</th><th>Canal</th><th>Cliente</th><th>Mensaje</th><th>Respuesta</th><th>Estado</th></tr>
+            <tr><th>Hora</th><th>Canal</th><th>Cliente</th><th>Mensaje</th><th>Respuesta del agente</th><th>Estado</th></tr>
           </thead>
           <tbody></tbody>
         </table>

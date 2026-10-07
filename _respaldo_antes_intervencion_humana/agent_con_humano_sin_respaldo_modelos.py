@@ -41,29 +41,13 @@ PAUSAR_AGENTE_AL_ESCALAR = True
 
 DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
 
-# Modelos de respaldo: si el modelo principal esta saturado (503 "high
-# demand") o se quedo sin cupo (429), se prueba con estos en orden antes de
-# avisarle al cliente que hubo un problema. Se pueden cambiar en .env con
-# GEMINI_MODELOS_RESPALDO=modelo1,modelo2
-DEFAULT_MODELOS_RESPALDO = "gemini-3.5-flash-lite,gemini-3.5-flash"
-
 # Gemini (sobre todo en el tier gratis) devuelve 503 "alta demanda" o un
 # 429 de limite de uso de vez en cuando -- son errores transitorios que la
 # propia Google recomienda reintentar ("please try again later"), asi que
 # antes de rendirse y avisarle al cliente que hubo un problema, reintentamos
 # unas pocas veces con una espera corta entre intentos.
-# Como hay modelos de respaldo, no conviene insistir mucho con un modelo
-# saturado: 2 intentos y se pasa al siguiente (asi el cliente no espera tanto).
-MAX_INTENTOS_GEMINI = 2
-ESPERA_BASE_REINTENTO_SEGUNDOS = 1.0
-# Maximo de segundos esperando a Gemini en cada intento.
-TIMEOUT_GEMINI_SEGUNDOS = 20
-
-# Los modelos Gemini 3 "piensan" antes de contestar, y eso agrega segundos.
-# Para atender un kiosco no hace falta razonar mucho: "minimal" es lo mas
-# rapido. Se puede cambiar en .env con GEMINI_NIVEL_RAZONAMIENTO
-# (minimal, low, medium, high).
-DEFAULT_NIVEL_RAZONAMIENTO = "minimal"
+MAX_INTENTOS_GEMINI = 3
+ESPERA_BASE_REINTENTO_SEGUNDOS = 1.5
 CODIGOS_TRANSITORIOS_GEMINI = {429, 500, 503}
 
 # Historial de conversacion por cliente (en memoria; alcanza para la demo).
@@ -227,9 +211,11 @@ async def llamar_gemini(system_prompt: str, historial: list[dict]) -> ResultadoA
             motivo="Falta configurar la API key de Gemini",
         )
 
-    principal = os.getenv("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL
-    respaldo = os.getenv("GEMINI_MODELOS_RESPALDO", DEFAULT_MODELOS_RESPALDO)
-    modelos = [principal] + [m.strip() for m in respaldo.split(",") if m.strip() and m.strip() != principal]
+    model = os.getenv("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{model}:generateContent?key={api_key}"
+    )
 
     body = {
         "systemInstruction": {"parts": [{"text": system_prompt}]},
@@ -237,48 +223,18 @@ async def llamar_gemini(system_prompt: str, historial: list[dict]) -> ResultadoA
         "generationConfig": {
             "temperature": 0.4,
             "responseMimeType": "application/json",
-            "thinkingConfig": {
-                "thinkingLevel": os.getenv("GEMINI_NIVEL_RAZONAMIENTO") or DEFAULT_NIVEL_RAZONAMIENTO
-            },
         },
     }
 
-    res = None
-    inicio = time.time()
-    async with httpx.AsyncClient(timeout=TIMEOUT_GEMINI_SEGUNDOS) as client:
-        for i, model in enumerate(modelos):
-            url = (
-                f"https://generativelanguage.googleapis.com/v1beta/models/"
-                f"{model}:generateContent?key={api_key}"
-            )
-            try:
-                res = await _post_gemini_con_reintentos(client, url, body)
-            except (httpx.TimeoutException, httpx.TransportError):
-                if i == len(modelos) - 1:
-                    raise
-                print(f"[agent] {model} no respondio (red/timeout), probando con {modelos[i + 1]}...")
-                continue
-            if res.status_code == 400 and "thinking" in res.text.lower() and "thinkingConfig" in body["generationConfig"]:
-                # Este modelo no acepta el nivel de razonamiento: se reintenta sin ese ajuste.
-                print(f"[agent] {model} no acepta thinkingConfig, reintentando sin ese ajuste...")
-                del body["generationConfig"]["thinkingConfig"]
-                res = await _post_gemini_con_reintentos(client, url, body)
-            if res.status_code == 200:
-                print(f"[agent] Respondio {model} en {time.time() - inicio:.1f} s")
-                break
-            # 401/400 = problema de la API key o del pedido: cambiar de modelo no ayuda.
-            if res.status_code in (400, 401) or i == len(modelos) - 1:
-                break
-            print(f"[agent] {model} respondio {res.status_code}, probando con {modelos[i + 1]}...")
+    async with httpx.AsyncClient(timeout=45) as client:
+        res = await _post_gemini_con_reintentos(client, url, body)
 
     if res.status_code != 200:
         raise RuntimeError(f"Gemini respondió {res.status_code}: {res.text}")
 
     data = res.json()
     try:
-        # Se ignoran las partes de "pensamiento" (thought) y se junta el texto.
-        partes = data["candidates"][0]["content"]["parts"]
-        texto = "".join(p.get("text", "") for p in partes if not p.get("thought"))
+        texto = data["candidates"][0]["content"]["parts"][0]["text"]
     except (KeyError, IndexError):
         texto = ""
 

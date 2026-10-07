@@ -21,10 +21,16 @@ function horaActual() {
   return new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function agregarBurbuja(texto, tipo, escalado = false) {
+function agregarBurbuja(texto, tipo, escalado = false, autor = "") {
   const burbuja = document.createElement("div");
-  burbuja.className = `burbuja ${tipo}` + (escalado ? " escalado" : "");
-  burbuja.textContent = texto;
+  burbuja.className = `burbuja ${tipo}` + (escalado ? " escalado" : "") + (autor ? " humano" : "");
+  if (autor) {
+    const quien = document.createElement("div");
+    quien.className = "autor";
+    quien.textContent = autor;
+    burbuja.appendChild(quien);
+  }
+  burbuja.appendChild(document.createTextNode(texto));
 
   const hora = document.createElement("div");
   hora.className = "hora";
@@ -77,8 +83,13 @@ async function enviarMensaje() {
     const data = await res.json();
 
     ocultarEscribiendo();
-    agregarBurbuja(data.respuesta, "agente", data.escalar);
-    if (data.escalar) {
+    // Si lo está atendiendo una persona, el agente no contesta (respuesta vacía).
+    if (data.respuesta) {
+      agregarBurbuja(data.respuesta, "agente", data.escalar);
+    }
+    if (data.en_manos_humano) {
+      cambiarModoHumano(true);
+    } else if (data.escalar) {
       agregarAviso("🔔 Se avisó a un encargado humano para que revise esta conversación");
     }
     if (data.pedido) {
@@ -153,3 +164,33 @@ async function mostrarBienvenida() {
 }
 
 mostrarBienvenida();
+
+// --- Intervención humana ---
+// Cuando el agente pasa la conversación a un encargado (o el encargado la
+// toma desde el panel), lo que escribe el encargado llega acá. El navegador
+// pregunta cada 2,5 segundos si hay mensajes nuevos de una persona.
+let atendidoPorHumano = false;
+
+function cambiarModoHumano(activo) {
+  if (activo === atendidoPorHumano) return;
+  atendidoPorHumano = activo;
+  agregarAviso(
+    activo
+      ? "👤 Te pasamos con un encargado. Te va a responder una persona por este chat."
+      : "🤖 El encargado terminó. Te vuelve a atender el asistente virtual."
+  );
+}
+
+async function buscarNovedades() {
+  try {
+    const res = await fetch(`/api/chat/novedades?cliente=${encodeURIComponent(idCliente())}`);
+    const data = await res.json();
+    if (data.en_manos_humano) cambiarModoHumano(true);
+    (data.mensajes || []).forEach((m) => agregarBurbuja(m.texto, "agente", false, "👤 Encargado"));
+    if (!data.en_manos_humano) cambiarModoHumano(false);
+  } catch {
+    // si el servidor no responde, se reintenta en el próximo ciclo
+  }
+}
+
+setInterval(buscarNovedades, 2500);
